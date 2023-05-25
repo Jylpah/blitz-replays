@@ -4,10 +4,11 @@
 # Extract tankopedia data in WG API JSON format from Blitz app files (Android APK unzipped)
 
 from os.path import isfile, isdir, dirname, realpath, expanduser, join as join_path
-from typing import Optional
+from typing import Optional, Any
 from configparser import ConfigParser
 from collections import OrderedDict
-from asyncio import set_event_loop_policy, run, create_task, get_event_loop_policy
+from sortedcontainers import SortedDict
+from asyncio import set_event_loop_policy, run, create_task, get_event_loop_policy, Task
 
 import aiofiles 				# type: ignore
 import xmltodict				# type: ignore
@@ -16,7 +17,7 @@ import logging
 
 sys.path.insert(0, dirname(dirname(realpath(__file__))))
 
-from blitzutils import EnumNation, EnumVehicleTypeInt
+from blitzutils import EnumNation, EnumVehicleTypeInt, EnumVehicleTypeStr, WGTank, Tank
 from pyutils import MultilevelFormatter
 
 # logging.getLogger("asyncio").setLevel(logging.DEBUG)
@@ -97,7 +98,7 @@ async def main() -> None:
 	debug		= logger.debug
 
 	if args.config is not None and isfile(args.config):
-		debug(f'Reading config from {args.config}')
+		debug("Reading config from %f", args.config)
 		config = ConfigParser()
 		config.read(args.config)
 		if 'TANKOPEDIA' in config:
@@ -114,15 +115,13 @@ async def main() -> None:
 						metavar="TANKS_FILE", help='File to write Tankopedia')
 	parser.add_argument('maps', type=str, default='maps.json', nargs='?', 
 						metavar='MAPS_FILE', help='File to write map names')
-	
-		
 	args = parser.parse_args(args=argv)
 
-	tasks = []
+	tasks : list[Task] = []
 	for nation in EnumNation:
 		tasks.append(asyncio.create_task(extract_tanks(args.blitz_app_dir, nation)))
 
-	tanklist = []
+	tanklist : list[] = list()
 	for tanklist_tmp in await asyncio.gather(*tasks):
 		tanklist.extend(tanklist_tmp)
 	
@@ -145,7 +144,7 @@ async def main() -> None:
 		# merge old and new tankopedia
 		tanks.update(new_tanks)
 		userStrs.update(new_userStrs) 
-		tankopedia : OrderedDict[str, str| int | dict ]= OrderedDict()
+		tankopedia : OrderedDict[str, str| int | dict ] = OrderedDict()
 		tankopedia['status'] = 'ok'
 		tankopedia['meta'] = { "count":  len(tanks) }
 		tankopedia['data'] = sort_dict(tanks, number=True)
@@ -170,38 +169,48 @@ async def main() -> None:
 
 	return None
 	
-async def extract_tanks(blitz_app_dir : str, nation: EnumNation):
+async def extract_tanks(blitz_app_dir : str, 
+						nation: EnumNation
+						) -> tuple[list[Tank], SortedDict[int, str]]:
 	"""Extract tanks from BLITZAPP_VEHICLE_FILE for a nation"""
-	tanks : list[dict[str, bool | int | str]] = list()
+
+	tanks : list[Tank] = list()
+	user_strs : SortedDict[int, str] = SortedDict()
+	
 	# WG has changed the location of Data directory - at least in steam client
 	if isdir(join_path(blitz_app_dir, 'assets')):
 		blitz_app_dir = join_path(blitz_app_dir, 'assets')
-	list_xml_file = join_path(blitz_app_dir, 
-								BLITZAPP_VEHICLES_DIR,
-								nation.name ,
-								BLITZAPP_VEHICLE_FILE)
-	if not isfile(list_xml_file): 
-		print('ERROR: cannot open ' + list_xml_file)
-		return None
-	debug(f'Opening file: {list_xml_file} (Nation: {nation})')
-	async with aiofiles.open(list_xml_file, 'r', encoding="utf8") as f:
-		try: 
-			tankList = xmltodict.parse(await f.read())
-			for data in tankList['root'].keys():
-				tank_xml = tankList['root'][data]
-				tank : dict[str, bool | int | str]= dict()
-				tank['is_premium'] = issubclass(type(tank_xml['price']), dict)
-				tank['nation']  = nation.name
-				tank['tank_id'] = get_tank_id(nation, int(tank_xml['id']))
-				tank['tier']    = int(tank_xml['level'])
-				tank['type']    = get_tank_type(tank_xml['tags'])
-				tank['userStr'] = tank_xml['userString']
-				#debug('Reading tank string: ' + tank['userStr'], force=True)
+
+	list_xml : str = join_path(blitz_app_dir, 
+							BLITZAPP_VEHICLES_DIR,
+							nation.name ,
+							BLITZAPP_VEHICLE_FILE)
+	
+	if not isfile(list_xml): 
+		error(f'cannot open {list_xml}')
+		return list()
+	
+	debug(f'Opening file: {list_xml} (Nation: {nation})')
+	async with aiofiles.open(list_xml, 'r', encoding="utf8") as f:
+		
+		tank_list : OrderedDict[str, Any] = xmltodict.parse(await f.read())
+		for data in tank_list['root'].keys():
+			try: 
+				tank_xml : OrderedDict[str, Any] = tank_list['root'][data]
+				debug(f'reading tank: {tank_xml}')
+				tank = Tank(tank_id=mk_tank_id(nation, int(tank_xml['id'])))
+
+				tank.is_premium = issubclass(type(tank_xml['price']), dict)
+				tank.nation 	= nation
+				tank.tier 		= int(tank_xml['level'])
+				tank.type 		= read_tank_type(tank_xml['tags'])
 				tanks.append(tank)
-		except Exception as err:
-			error(err)
-			sys.exit(2)
-	return tanks
+				user_strs[tank.tank_id] = tank_xml['userString']
+				debug("Read tank_id=%d", tank.tank_id)
+			except KeyError as err:
+				error("Failed to read item=%s: %s", data, str(err))
+	return tanks, user_strs
+
 
 async def read_user_strs(blitz_app_dir : str) -> tuple[dict, dict]:
 	"""Read user strings to convert map and tank names"""
@@ -286,16 +295,16 @@ async def convert_tank_names(tanklist : list, tank_strs: dict) -> tuple[dict, di
 	return tankopedia_sorted, userStrs_sorted
 
 
-def get_tank_id(nation: EnumNation, tank_id : int) -> int:
+def mk_tank_id(nation: EnumNation, tank_id : int) -> int:
 	return (tank_id << 8) + (nation.value << 4) + 1 
 
 
-def get_tank_type(tagstr : str):
-	tags = tagstr.split(' ')
-	for t_type in wg.TANK_TYPE:
-		if tags[0] == t_type:
-			return t_type
-	return None
+def read_tank_type(tagstr: str) -> EnumVehicleTypeInt:
+	tags : set[str] = set(tagstr.split(' '))
+	for tank_type in EnumVehicleTypeStr:
+		if tank_type.value in tags:
+			return tank_type.int_type
+	raise ValueError(f"No known tank type found from 'tags' field: {tagstr}")
 
 ### main()
 if __name__ == "__main__":
