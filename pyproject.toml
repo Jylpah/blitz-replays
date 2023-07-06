@@ -1,21 +1,19 @@
 [project]
 name = "blitz-replays"
 version = "0.0.1"
-authors = [ 
-	{ name="Jylpah", email="jylpah@gmail.com"} 
-	]
+authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
+	"Programming Language :: Python :: 3",
+	"License :: OSI Approved :: MIT License",
+	"Operating System :: OS Independent",
 	"Development Status :: 3 - Alpha",
-	"Environment :: Console", 
+	"Environment :: Console",
 	"Framework :: Pydantic",
 	"Framework :: aiohttp",
-	"Topic :: Games/Entertainment"
+	"Topic :: Games/Entertainment",
 ]
 dependencies = [
 	# "aiofiles>=23.1.0",
@@ -32,10 +30,10 @@ dependencies = [
 	"sortedcollections>=2.1.0",
 	# "pyutils @ git+https://github.com/Jylpah/pyutils.git",
 	"blitz-utils @ git+https://github.com/Jylpah/blitz-utils.git",
-	]
+]
 
 [project.optional-dependencies]
-dev = [	
+dev = [
 	"build>=0.10.0",
 	"mypy==1.2.0",
 	"pip-chill==1.0.3",
@@ -55,8 +53,8 @@ dev = [
 "Bug Tracker" = "https://github.com/Jylpah/blitz-replays/issues"
 
 [project.scripts]
-wotb-replays 	= "blitzreplays.replays:cli_main"
-wotb-tankopedia = "blitzreplays.tankopedia:cli_main"
+blitz-replays = "blitzreplays.replays:cli_main"
+blitz-data = "blitzreplays.blitzdata:cli_main"
 
 [build-system]
 requires = ["hatchling"]
@@ -69,10 +67,8 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/blitzreplays"]
 
-# [tool.mypy]
-# plugins = [
-#   "pydantic.mypy"
-# ]
+[tool.mypy]
+plugins = ["pydantic.mypy"]
 
 [tool.pydantic-mypy]
 init_forbid_extra = false
@@ -80,9 +76,9 @@ init_typed = false
 warn_required_dynamic_aliases = false
 warn_untyped_fields = true
 
-# [tool.black]
+[tool.black]
 # line-length = 120
-# include = '\.pyi?$'
+include = '\.pyi?$'
 
 [tool.pyright]
 reportGeneralTypeIssues = false
