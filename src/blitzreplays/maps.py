@@ -20,25 +20,21 @@ debug = logger.debug
 def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
     try:
         debug("starting")
-        tankopedia_parsers = parser.add_subparsers(
-            dest="tankopedia_cmd",
-            title="tankopedia commands",
+        maps_parsers = parser.add_subparsers(
+            dest="maps_cmd",
+            title="maps commands",
             description="valid commands",
             metavar="app-data | file | wg",
         )
-        tankopedia_parsers.required = True
+        maps_parsers.required = True
 
-        app_parser = tankopedia_parsers.add_parser("app", aliases=["app-data"], help="tankopedia app help")
+        app_parser = maps_parsers.add_parser("app", aliases=["app-data"], help="maps app help")
         if not add_args_app(app_parser, config=config):
-            raise Exception("Failed to define argument parser for: tankopedia app")
+            raise Exception("Failed to define argument parser for: maps app")
 
-        file_parser = tankopedia_parsers.add_parser("file", help="tankopedia file help")
+        file_parser = maps_parsers.add_parser("file", help="maps file help")
         if not add_args_file(file_parser, config=config):
-            raise Exception("Failed to define argument parser for: tankopedia file")
-
-        wg_parser = tankopedia_parsers.add_parser("wg", help="tankopedia wg help")
-        if not add_args_wg(wg_parser, config=config):
-            raise Exception("Failed to define argument parser for: tankopedia wg")
+            raise Exception("Failed to define argument parser for: maps file")
 
         debug("Finished")
         return True
