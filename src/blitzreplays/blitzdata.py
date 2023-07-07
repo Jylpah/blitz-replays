@@ -4,20 +4,13 @@ from os.path import isfile, isdir, dirname, realpath, expanduser, join as join_p
 from pathlib import Path
 from typing import Optional, Any
 from configparser import ConfigParser
-from sortedcontainers import SortedDict  # type: ignore
 from asyncio import set_event_loop_policy, run, create_task, get_event_loop_policy, Task
-from re import Pattern, Match, compile
-from pydantic import ValidationError
 
-import aiofiles  # type: ignore
-import xmltodict  # type: ignore
-import sys, argparse, json, os, inspect, asyncio, logging, time, configparser
+import sys, argparse, logging
 import logging
 
 sys.path.insert(0, dirname(dirname(realpath(__file__))))
 
-from blitzutils import EnumNation, EnumVehicleTypeInt, EnumVehicleTypeStr, WGTank, EnumVehicleTier
-from blitzutils import WGApiTankopedia
 from pyutils import MultilevelFormatter
 from blitzreplays import tankopedia
 from blitzreplays import maps
@@ -30,9 +23,6 @@ verbose = logger.info
 debug = logger.debug
 
 FILE_CONFIG = "blitzstats.ini"
-BLITZAPP_STRINGS = "Data/Strings/en.yaml"
-BLITZAPP_VEHICLES_DIR = "Data/XML/item_defs/vehicles/"
-BLITZAPP_VEHICLE_FILE = "list.xml"
 
 
 ## main() -------------------------------------------------------------
@@ -101,9 +91,6 @@ async def main() -> None:
         debug("Reading config from %f", args.config)
         config = ConfigParser()
         config.read(args.config)
-        # if "METADATA" in config:
-        #     configOptions = config["METADATA"]
-        #     BLITZAPP_FOLDER = configOptions.get("blitz_app_dir", BLITZAPP_FOLDER)
     else:
         debug("No config file found")
     # Parse command args
