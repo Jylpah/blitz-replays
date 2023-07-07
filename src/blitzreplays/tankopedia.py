@@ -5,20 +5,27 @@ from typing import Optional, Literal, Any, cast
 from asyncio import Task, TaskGroup, create_task, gather
 from os.path import isdir, isfile, exists
 from pathlib import Path
+from re import Pattern, Match, compile
 from sortedcollections import SortedDict  # type: ignore
 from pydantic import ValidationError
-from aiofiles import open
+import aiofiles
 import logging
-
+import xmltodict  # type: ignore
+import yaml
+import os
 
 from blitzutils import Region, EnumNation, EnumVehicleTier, EnumVehicleTypeInt, EnumVehicleTypeStr
-from blitzutils import WGTank, WGApiTankopedia
+from blitzutils import WGTank, WGApiTankopedia, WGApi, WoTBlitzTankString
 
 logger = logging.getLogger()
 error = logger.error
 message = logger.warning
 verbose = logger.info
 debug = logger.debug
+
+BLITZAPP_STRINGS: str = "Data/Strings/en.yaml"
+BLITZAPP_VEHICLES_DIR: str = "Data/XML/item_defs/vehicles/"
+BLITZAPP_VEHICLE_FILE: str = "list.xml"
 
 ########################################################
 #
@@ -52,7 +59,7 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
         if not add_args_wg(wg_parser, config=config):
             raise Exception("Failed to define argument parser for: tankopedia wg")
 
-        if config is not None and "METADATA" in config:
+        if config is not None and "METADATA" in config.sections():
             configOptions = config["METADATA"]
             TANKS_FILE = configOptions.get("tankopedia_json", TANKS_FILE)
 
@@ -76,7 +83,7 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
     debug("starting")
     BLITZAPP_DIR: str = "./BlitzApp"
     try:
-        if config is not None and "METADATA" in config:
+        if config is not None and "METADATA" in config.sections():
             configOptions = config["METADATA"]
             BLITZAPP_DIR = configOptions.get("blitz_app_dir", BLITZAPP_DIR)
         parser.add_argument(
@@ -90,21 +97,31 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
 
 def add_args_file(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
     debug("starting")
-    parser.add_argument("file", type=str, metavar="FILE", help="Read Tankopedia from file")
+    parser.add_argument("infile", type=str, metavar="FILE", help="Read Tankopedia from file")
     return True
 
 
 def add_args_wg(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
     debug("starting")
+    WG_APP_ID: str = WGApi.DEFAULT_WG_APP_ID
     try:
         parser.add_argument(
-            "server",
+            "region",
             default="eu",
             nargs="?",
             choices=list(Region.API_regions()),
-            metavar="SERVER",
-            help="Raed Tankopedia from file",
+            metavar="REGION",
+            help="Read Tankopedia from WG API server",
         )
+        if config is not None and "WG" in config.sections():
+            configWG = config["WG"]
+            WG_APP_ID = configWG.get("app_id", WG_APP_ID)
+
+        # if config is not None and "LESTA" in config.sections():
+        #     configRU = config["LESTA"]
+        #     LESTA_APP_ID = configRU.get("app_id", LESTA_APP_ID)
+
+        parser.add_argument("--wg-app-id", type=str, default=WG_APP_ID, metavar="APP_ID", help="Set WG APP ID")
     except Exception as err:
         error(f"could not add arguments: {err}")
         return False
@@ -121,107 +138,98 @@ def add_args_wg(parser: ArgumentParser, config: Optional[ConfigParser] = None) -
 async def cmd(args: Namespace) -> bool:
     try:
         debug("starting")
+
+        tankopedia_new: WGApiTankopedia | None
         if args.tankopedia_cmd == "app":
-            return await cmd_app(args)
-
+            if (tankopedia_new := await cmd_app(args)) is None:
+                raise ValueError(f"could not read tankopedia from game files: {args.blitz_app_dir}")
         elif args.tankopedia_cmd == "file":
-            return await cmd_file(args)
-
+            if (tankopedia_new := await cmd_file(args)) is None:
+                raise ValueError(f"could not read tankopedia from file: {args.infile}")
         elif args.tankopedia_cmd == "wg":
-            return await cmd_wg(args)
+            if (tankopedia_new := await cmd_wg(args)) is None:
+                raise ValueError(f"could not read tankopedia from WG API: {args.server}")
         else:
             raise NotImplementedError(f"unknown command: {args.tankopedia_cmd}")
+
+        if args.update and isfile(args.outfile):
+            try:
+                tankopedia_old = WGApiTankopedia.parse_file(args.outfile)
+                for tank in tankopedia_new.data.values():
+                    tankopedia_old.add(tank)
+            except ValidationError as err:
+                error(f"could not parse old tankopedia ({args.outfile}): {err}")
+                return False
+        else:
+            tankopedia_old = tankopedia_new
+
+        return await tankopedia_old.save_json(args.outfile) > 0
 
     except Exception as err:
         error(f"{err}")
     return False
 
 
-async def cmd_app(args: Namespace) -> bool:
+async def cmd_app(args: Namespace) -> WGApiTankopedia | None:
+    """Read Tankopedia from game files"""
     debug("starting")
     tasks: list[Task] = []
-    for nation in EnumNation:
-        tasks.append(create_task(extract_tanks(args.blitz_app_dir, nation)))
+    try:
+        for nation in EnumNation:
+            tasks.append(create_task(extract_tanks(args.blitz_app_dir, nation)))
 
-    tanks: list[WGTank] = list()
-    # user_strs: dict[int, str] = dict()
-    for nation_tanks in await gather(*tasks):
-        # user_strs.update(nation_user_strs)
-        tanks.extend(nation_tanks)
+        tanks: list[WGTank] = list()
+        # user_strs: dict[int, str] = dict()
+        for nation_tanks in await gather(*tasks):
+            tanks.extend(nation_tanks)
 
-    tank_strs, map_strs = await read_user_strs(args.blitz_app_dir)
+        tank_strs: dict[str, str] = await read_tank_strs(args.blitz_app_dir)
+        tankopedia = WGApiTankopedia()
 
-    tankopedia = WGApiTankopedia()
+        for tank in convert_tank_names(tanks, tank_strs):
+            tankopedia.add(tank)
 
-    ## CONTINUE:
-    # - add WGApiWoTBlitz.read(Path or filename)
-    # - Create separate model for user strings
+        return tankopedia
+    except Exception as err:
+        error(err)
+    return None
 
-    tankopedia = WGApiTankopedia()
-    if exists(args.tanks):
-        try:
-            tankopedia = WGApiTankopedia.parse_file(args.tanks)
-        except ValidationError as err:
-            pass
 
-    async with open(args.tanks, "w", encoding="utf8") as outfile:
-        new_tanks, new_userStrs = await convert_tank_names(tanklist, tank_strs)
-        # merge old and new tankopedia
-        tanks.update(new_tanks)
-        userStrs.update(new_userStrs)
-        tankopedia: SortedDict[str, str | int | dict] = SortedDict()
-        tankopedia["status"] = "ok"
-        tankopedia["meta"] = {"count": len(tanks)}
-        tankopedia["data"] = sort_dict(tanks, number=True)
-        tankopedia["userStr"] = sort_dict(userStrs)
-        message(f"New tankopedia '{args.tanks}' contains {len(tanks)} tanks")
-        message(f"New tankopedia '{args.tanks}' contains {len(userStrs)} tanks strings")
-        await outfile.write(json.dumps(tankopedia, ensure_ascii=False, indent=4, sort_keys=False))
+async def cmd_file(args: Namespace) -> WGApiTankopedia | None:
+    debug("starting")
+    try:
+        if isfile(args.infile):
+            return WGApiTankopedia.parse_file(args.infile)
+    except ValidationError as err:
+        error(f"could not parse tankopedia from file: {args.infile}: {err}")
+    return None
 
-    if args.maps is not None:
-        maps = {}
-        if os.path.exists(args.maps):
-            try:
-                async with aiofiles.open(args.maps) as infile:
-                    maps = json.loads(await infile.read())
-            except Exception as err:
-                error(f"Unexpected error when reading file: {args.maps} : {err}")
-        # merge old and new map data
-        maps.update(map_strs)
-        async with aiofiles.open(args.maps, "w", encoding="utf8") as outfile:
-            message(f"New maps file '{args.maps}' contains {len(maps)} maps")
-            await outfile.write(json.dumps(maps, ensure_ascii=False, indent=4, sort_keys=True))
+
+async def cmd_wg(args: Namespace) -> WGApiTankopedia | None:
+    debug("starting")
+    async with WGApi(app_id=args.wg_app_id) as wg:
+        return await wg.get_tankopedia(region=Region(args.region))
 
     return None
 
-    return False
 
-
-async def cmd_file(args: Namespace) -> bool:
-    return False
-
-
-async def cmd_wg(args: Namespace) -> bool:
-    return False
-
-
-async def extract_tanks(blitz_app_dir: str, nation: EnumNation) -> list[WGTank]:
+async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[WGTank]:
     """Extract tanks from BLITZAPP_VEHICLE_FILE 'list.xml' file for a nation"""
 
     tanks: list[WGTank] = list()
     # user_strs: dict[int, str] = dict()
 
     # WG has changed the location of Data directory - at least in steam client
-    if isdir(join_path(blitz_app_dir, "assets")):
-        blitz_app_dir = join_path(blitz_app_dir, "assets")
+    if isdir(blitz_app_dir / "assets"):
+        blitz_app_dir = blitz_app_dir / "assets"
 
-    list_xml: str = join_path(blitz_app_dir, BLITZAPP_VEHICLES_DIR, nation.name, BLITZAPP_VEHICLE_FILE)
+    list_xml: Path = blitz_app_dir / BLITZAPP_VEHICLES_DIR / nation.name / BLITZAPP_VEHICLE_FILE
 
     if not isfile(list_xml):
-        error(f"cannot open {list_xml}")
+        error(f"cannot open tank file for nation={nation}: {list_xml}")
         return tanks
 
-    debug(f"Opening file: {list_xml} (Nation: {nation})")
+    debug(f"Opening file: {list_xml} nation={nation}")
     async with aiofiles.open(list_xml, "r", encoding="utf8") as f:
         tank_list: dict[str, Any] = xmltodict.parse(await f.read())
         for data in tank_list["root"].keys():
@@ -234,97 +242,55 @@ async def extract_tanks(blitz_app_dir: str, nation: EnumNation) -> list[WGTank]:
                 tank.type = read_tank_type(tank_xml["tags"])
                 tank.name = tank_xml["userString"]  # Need to be converted later
                 tanks.append(tank)
-                # user_strs[tank.tank_id] = tank_xml["userString"]  # is this needed?
                 debug("Read tank_id=%d", tank.tank_id)
             except KeyError as err:
                 error("Failed to read item=%s: %s", data, str(err))
-    return tanks  # , user_strs
+    return tanks
 
 
-async def read_user_strs(blitz_app_dir: Path) -> tuple[dict[str, str], dict[str, str]]:
+async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
     """Read user strings to convert map and tank names"""
     tank_strs: dict[str, str] = dict()
-    map_strs: dict[str, str] = dict()
     filename: Path = blitz_app_dir / BLITZAPP_STRINGS
+    user_strs: dict[str, str] = dict()
     debug(f"Opening file: %s for reading UserStrings", str(filename))
-    try:
-        async with aiofiles.open(filename, "r", encoding="utf8") as strings_file:
-            regexp_tank: Pattern = compile('^"(#\\w+?_vehicles:.+?)": "(.+)"$')
-            regexp_map: Pattern = compile('^"#maps:([a-z_]+?):.+?: "(.+?)"$')
-            match: Match | None
-            async for line in strings_file:
-                match = regexp_tank.match(line)
-                if match is not None:
-                    if match.group(1) not in tank_strs:  # some Halloween map variants have the same short name
-                        tank_strs[match.group(1)] = match.group(2)
+    with open(filename, "r", encoding="utf8") as strings_file:
+        user_strs = yaml.safe_load(strings_file)
+
+    re_tank: Pattern = compile("^#\\w+?_vehicles:")
+    re_skip: Pattern = compile("(^Chassis_|^Turret_|_short$)")
+    for key, value in user_strs.items():
+        try:
+            if re_tank.match(key):
+                if re_skip.match(key.split(":")[1]):
                     continue
+                if key not in tank_strs:  # some Halloween map variants have the same short name
+                    tank_strs[key] = value
+        except KeyError as err:
+            error(err)
 
-                match = regexp_map.match(line)
-                if match is not None:
-                    map_strs[match.group(1)] = match.group(2)
-
-    except Exception as err:
-        error(err)
-        sys.exit(1)
-
-    return tank_strs, map_strs
+    return tank_strs
 
 
-async def convert_tank_names(tanklist: list, tank_strs: dict) -> tuple[dict, dict]:
+def convert_tank_names(tanks: list[WGTank], tank_strs: dict[str, str]) -> list[WGTank]:
     """Convert tank names for Tankopedia"""
-    tankopedia = {}
-    userStrs = {}
+    debug("starting")
 
-    debug(f"tank_strs:")
-    for key, value in tank_strs.items():
-        debug(f"{key}: {value}")
-    debug("---------")
-    try:
-        for tank in tanklist:
-            try:
-                debug(f"tank: {tank}")
-                if tank["userStr"] in tank_strs:
-                    tank["name"] = tank_strs[tank["userStr"]]
-                else:
-                    tank["name"] = tank["userStr"].split(":")[1]
-                tank.pop("userStr", None)
-                tank_tmp = dict()
-                for key in sorted(tank.keys()):
-                    tank_tmp[key] = tank[key]
-                tankopedia[str(tank["tank_id"])] = tank_tmp
-            except:
-                error(f"Could not process tank: {tank}")
+    res: list[WGTank] = list()
+    for tank in tanks:
+        try:
+            if tank.name in tank_strs:
+                tank.name = tank_strs[tank.name]
+            elif tank.name is not None:
+                tank.name = tank.name.split(":")[1]
+            else:
+                error(f"no name defined for tank_id={tank.tank_id}: {tank.name}")
+        except KeyError as err:
+            error(f"could not convert name tank_id={tank.tank_id}: {tank.name}: {err}")
+        finally:
+            res.append(tank)
 
-        for tank_str in tank_strs:
-            skip = False
-            key = tank_str.split(":")[1]
-            debug("Tank string: " + key + " = " + tank_strs[tank_str])
-            re_strs = [r"^Chassis_", r"^Turret_", r"^_", r"_short$"]
-            for re_str in re_strs:
-                p = re.compile(re_str)
-                if p.match(key):
-                    skip = True
-                    break
-            if skip:
-                continue
-
-            userStrs[key] = tank_strs[tank_str]
-
-        # sorting
-        tankopedia_sorted = OrderedDict()
-        for tank_id in sorted(tankopedia.keys(), key=int):
-            tankopedia_sorted[str(tank_id)] = tankopedia[str(tank_id)]
-
-        userStrs_sorted = OrderedDict()
-        for userStr in sorted(userStrs.keys()):
-            userStrs_sorted[userStr] = userStrs[userStr]
-        # debug('Tank strings: ' + str(len(userStrs_sorted)))
-
-    except Exception as err:
-        error(err)
-        sys.exit(1)
-
-    return tankopedia_sorted, userStrs_sorted
+    return res
 
 
 def mk_tank_id(nation: EnumNation, tank_id: int) -> int:
