@@ -32,7 +32,6 @@ async def main() -> None:
     # os.chdir(os.path.dirname(sys.argv[0]))
 
     ## Read config
-    BLITZAPP_FOLDER = "."
     _PKG_NAME = "blitzreplays"
     CONFIG = _PKG_NAME + ".ini"
     LOG = _PKG_NAME + ".log"
@@ -55,7 +54,7 @@ async def main() -> None:
             verbose(f"config file: {CONFIG_FILE}")
             break
 
-    parser = argparse.ArgumentParser(description="Read/update Blitz metadata")
+    parser = argparse.ArgumentParser(description="Read/update Blitz metadata", add_help=False)
     arggroup_verbosity = parser.add_mutually_exclusive_group()
     arggroup_verbosity.add_argument(
         "--debug", "-d", dest="LOG_LEVEL", action="store_const", const=logging.DEBUG, help="Debug mode"
@@ -88,7 +87,7 @@ async def main() -> None:
     debug = logger.debug
 
     if args.config is not None and isfile(args.config):
-        debug("Reading config from %f", args.config)
+        debug("Reading config from %s", args.config)
         config = ConfigParser()
         config.read(args.config)
     else:
@@ -126,15 +125,31 @@ async def main() -> None:
         await maps.cmd(args)
 
 
-### main()
-if __name__ == "__main__":
-    # To avoid 'Event loop is closed' RuntimeError due to compatibility issue with aiohttp
-    if sys.platform.startswith("win") and sys.version_info >= (3, 8):
-        try:
-            from asyncio import WindowsSelectorEventLoopPolicy
-        except ImportError:
-            pass
-        else:
-            if not isinstance(get_event_loop_policy(), WindowsSelectorEventLoopPolicy):
-                set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+# ### main()
+# if __name__ == "__main__":
+#     # To avoid 'Event loop is closed' RuntimeError due to compatibility issue with aiohttp
+#     if sys.platform.startswith("win") and sys.version_info >= (3, 8):
+#         try:
+#             from asyncio import WindowsSelectorEventLoopPolicy
+#         except ImportError:
+#             pass
+#         else:
+#             if not isinstance(get_event_loop_policy(), WindowsSelectorEventLoopPolicy):
+#                 set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+#     run(main())
+
+
+########################################################
+#
+# main() entry
+#
+########################################################
+
+
+def cli_main():
     run(main())
+
+
+if __name__ == "__main__":
+    # asyncio.run(main(sys.argv[1:]), debug=True)
+    cli_main()
