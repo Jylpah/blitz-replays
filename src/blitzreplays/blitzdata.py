@@ -104,7 +104,7 @@ async def main() -> None:
     cmd_parsers.required = True
 
     tankopedia_parser = cmd_parsers.add_parser("tankopedia", aliases=["tp"], help="tankopedia help")
-    maps_parser = cmd_parsers.add_parser("maps", help="maps help")
+    maps_parser = cmd_parsers.add_parser("maps", aliases=["map"], help="maps help")
 
     if not tankopedia.add_args(tankopedia_parser, config):
         raise Exception("Failed to define argument parser for: tankopedia")
