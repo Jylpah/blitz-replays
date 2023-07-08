@@ -114,15 +114,36 @@ async def cmd(args: Namespace) -> bool:
         else:
             raise NotImplementedError(f"unknown command: {args.maps_cmd}")
 
-        if args.update and isfile(args.outfile):
+        if args.update:
             if (maps_old := await Maps.open_json(args.outfile)) is None:
                 error(f"could not parse old tankopedia ({args.outfile})")
                 return False
-            maps_old.update(maps_new)
         else:
-            maps_old = maps_new
+            maps_old = Maps()
 
-        return await maps_old.save_json(args.outfile) > 0
+        new: set[str] = {map.key for map in maps_new}
+        old: set[str] = {map.key for map in maps_old}
+        added: set[str] = new - old
+        updated: set[str] = new & old
+        updated = {key for key in updated if maps_new[key] != maps_old[key]}
+
+        if args.update:
+            maps_old.update(maps_new)
+            maps_new = maps_old
+
+        if await maps_new.save_json(args.outfile) > 0:
+            if logger.level < logging.WARNING:
+                for key in added:
+                    verbose(f"added:   {maps_new[key].name}")
+
+            if logger.level < logging.WARNING:
+                for key in updated:
+                    verbose(f"updated: {maps_new[key].name}")
+
+            message(f"added {len(added)} and updated {len(updated)} maps to map list")
+            message(f"saved {len(maps_new)} maps to map list ({args.outfile})")
+        else:
+            error(f"writing map list failed: {args.outfile}")
 
     except Exception as err:
         error(f"{err}")
