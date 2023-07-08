@@ -121,7 +121,7 @@ async def main() -> None:
 
     if args.main_cmd == "tankopedia":
         await tankopedia.cmd(args)
-    elif args.main_cmd == "maps":
+    elif args.main_cmd in ["maps", "map"]:
         await maps.cmd(args)
 
 
