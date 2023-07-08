@@ -59,7 +59,7 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
             default=MAPS_FILE,
             nargs="?",
             metavar="MAPS_FILE",
-            help="Write maps to file",
+            help=f"Write maps to file ({MAPS_FILE})",
         )
         parser.add_argument("-u", "--update", action="store_true", help="Update maps")
 
@@ -141,11 +141,11 @@ async def cmd_app(args: Namespace) -> Maps | None:
             user_strs = yaml.safe_load(strings_file)
 
         re_map: Pattern = compile(r"^#maps:(\w+?):.+?$")
-
+        match: Match | None
         for key, value in user_strs.items():
             # some Halloween map variants have the same short name
-            if re_map.match(key) and key not in maps:
-                maps.add(Map(name=value, key=key))
+            if (match := re_map.match(key)) and key not in maps:
+                maps.add(Map(name=value, key=match.group(1)))
         return maps
     except Exception as err:
         error(f"unable to read maps from {filename.resolve()}: {err}")
