@@ -140,6 +140,7 @@ async def cmd(args: Namespace) -> bool:
         debug("starting")
 
         tankopedia_new: WGApiTankopedia | None
+        tankopedia_old: WGApiTankopedia | None
         if args.tankopedia_cmd == "app":
             if (tankopedia_new := await cmd_app(args)) is None:
                 raise ValueError(f"could not read tankopedia from game files: {args.blitz_app_dir}")
@@ -153,13 +154,10 @@ async def cmd(args: Namespace) -> bool:
             raise NotImplementedError(f"unknown command: {args.tankopedia_cmd}")
 
         if args.update and isfile(args.outfile):
-            try:
-                tankopedia_old = WGApiTankopedia.parse_file(args.outfile)
-                for tank in tankopedia_new.data.values():
-                    tankopedia_old.add(tank)
-            except ValidationError as err:
-                error(f"could not parse old tankopedia ({args.outfile}): {err}")
+            if (tankopedia_old := await WGApiTankopedia.open_json(args.outfile)) is None:
+                error(f"could not parse old tankopedia: {args.outfile}")
                 return False
+            tankopedia_old.update(tankopedia_new)
         else:
             tankopedia_old = tankopedia_new
 
@@ -197,12 +195,7 @@ async def cmd_app(args: Namespace) -> WGApiTankopedia | None:
 
 async def cmd_file(args: Namespace) -> WGApiTankopedia | None:
     debug("starting")
-    try:
-        if isfile(args.infile):
-            return WGApiTankopedia.parse_file(args.infile)
-    except ValidationError as err:
-        error(f"could not parse tankopedia from file: {args.infile}: {err}")
-    return None
+    return await WGApiTankopedia.open_json(args.infile)
 
 
 async def cmd_wg(args: Namespace) -> WGApiTankopedia | None:
