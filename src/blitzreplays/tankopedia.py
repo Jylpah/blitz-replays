@@ -153,15 +153,34 @@ async def cmd(args: Namespace) -> bool:
         else:
             raise NotImplementedError(f"unknown command: {args.tankopedia_cmd}")
 
-        if args.update and isfile(args.outfile):
+        if args.update:
             if (tankopedia_old := await WGApiTankopedia.open_json(args.outfile)) is None:
                 error(f"could not parse old tankopedia: {args.outfile}")
                 return False
-            tankopedia_old.update(tankopedia_new)
         else:
-            tankopedia_old = tankopedia_new
+            tankopedia_old = WGApiTankopedia()
 
-        return await tankopedia_old.save_json(args.outfile) > 0
+        new: set[int] = {tank.tank_id for tank in tankopedia_new}
+        old: set[int] = {tank.tank_id for tank in tankopedia_old}
+        added: set[int] = new - old
+        updated: set[int] = new & old
+        updated = {tank_id for tank_id in updated if tankopedia_new[tank_id] != tankopedia_old[tank_id]}
+
+        if args.update:
+            tankopedia_old.update(tankopedia_new)
+            tankopedia_new = tankopedia_old
+
+        if await tankopedia_new.save_json(args.outfile) > 0:
+            if logger.level < logging.WARNING:
+                for tank_id in added:
+                    verbose(f"added:   tank_id={tank_id:<5} {tankopedia_new[tank_id].name}")
+
+            if logger.level < logging.WARNING:
+                for tank_id in updated:
+                    verbose(f"updated: tank_id={tank_id:<5} {tankopedia_new[tank_id].name}")
+
+            message(f"added {len(added)} and updated {len(updated)} tanks to Tankopedia")
+            message(f"saved {len(tankopedia_new)} tanks to Tankopedia ({args.outfile})")
 
     except Exception as err:
         error(f"{err}")
