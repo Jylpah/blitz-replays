@@ -69,7 +69,7 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
             default=TANKS_FILE,
             nargs="?",
             metavar="TANKOPEDIA",
-            help="Write Tankopedia to file",
+            help=f"Write Tankopedia to file ({TANKS_FILE})",
         )
         parser.add_argument("-u", "--update", action="store_true", help="Update Tankopedia")
         debug("Finished")
@@ -174,14 +174,14 @@ async def cmd_app(args: Namespace) -> WGApiTankopedia | None:
     tasks: list[Task] = []
     try:
         for nation in EnumNation:
-            tasks.append(create_task(extract_tanks(args.blitz_app_dir, nation)))
+            tasks.append(create_task(extract_tanks(Path(args.blitz_app_dir), nation)))
 
         tanks: list[WGTank] = list()
         # user_strs: dict[int, str] = dict()
         for nation_tanks in await gather(*tasks):
             tanks.extend(nation_tanks)
 
-        tank_strs: dict[str, str] = await read_tank_strs(args.blitz_app_dir)
+        tank_strs: dict[str, str] = await read_tank_strs(Path(args.blitz_app_dir))
         tankopedia = WGApiTankopedia()
 
         for tank in convert_tank_names(tanks, tank_strs):
@@ -231,12 +231,14 @@ async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[WGTank]
                 debug(f"reading tank: {tank_xml}")
                 tank = WGTank(tank_id=mk_tank_id(nation, int(tank_xml["id"])), nation=nation)
                 tank.is_premium = issubclass(type(tank_xml["price"]), dict)
-                tank.tier = EnumVehicleTier(tank_xml["level"])
+                tank.tier = EnumVehicleTier(int(tank_xml["level"]))
                 tank.type = read_tank_type(tank_xml["tags"])
                 tank.name = tank_xml["userString"]  # Need to be converted later
                 tanks.append(tank)
                 debug("Read tank_id=%d", tank.tank_id)
             except KeyError as err:
+                error("Failed to read item=%s: %s", data, str(err))
+            except Exception as err:
                 error("Failed to read item=%s: %s", data, str(err))
     return tanks
 
