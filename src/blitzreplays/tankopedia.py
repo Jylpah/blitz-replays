@@ -181,6 +181,8 @@ async def cmd(args: Namespace) -> bool:
 
             message(f"added {len(added)} and updated {len(updated)} tanks to Tankopedia")
             message(f"saved {len(tankopedia_new)} tanks to Tankopedia ({args.outfile})")
+        else:
+            error(f"writing Tankopedia failed: {args.outfile}")
 
     except Exception as err:
         error(f"{err}")
