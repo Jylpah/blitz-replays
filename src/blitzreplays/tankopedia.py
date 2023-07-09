@@ -14,7 +14,13 @@ import xmltodict  # type: ignore
 import yaml
 import os
 
-from blitzutils import Region, EnumNation, EnumVehicleTier, EnumVehicleTypeInt, EnumVehicleTypeStr
+from blitzutils import (
+    Region,
+    EnumNation,
+    EnumVehicleTier,
+    EnumVehicleTypeInt,
+    EnumVehicleTypeStr,
+)
 from blitzutils import WGTank, WGApiTankopedia, WGApi, WoTBlitzTankString
 
 logger = logging.getLogger()
@@ -47,7 +53,9 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
         )
         tankopedia_parsers.required = True
 
-        app_parser = tankopedia_parsers.add_parser("app", aliases=["app-data"], help="tankopedia app help")
+        app_parser = tankopedia_parsers.add_parser(
+            "app", aliases=["app-data"], help="tankopedia app help"
+        )
         if not add_args_app(app_parser, config=config):
             raise Exception("Failed to define argument parser for: tankopedia app")
 
@@ -71,7 +79,9 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
             metavar="TANKOPEDIA",
             help=f"Write Tankopedia to file ({TANKS_FILE})",
         )
-        parser.add_argument("-u", "--update", action="store_true", help="Update Tankopedia")
+        parser.add_argument(
+            "-u", "--update", action="store_true", help="Update Tankopedia"
+        )
         debug("Finished")
         return True
     except Exception as err:
@@ -87,7 +97,11 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
             configOptions = config["METADATA"]
             BLITZAPP_DIR = configOptions.get("blitz_app_dir", BLITZAPP_DIR)
         parser.add_argument(
-            "blitz_app_dir", type=str, default=BLITZAPP_DIR, metavar="BLTIZ_APP_DIR", help="Read Tankopedia from file"
+            "blitz_app_dir",
+            type=str,
+            default=BLITZAPP_DIR,
+            metavar="BLTIZ_APP_DIR",
+            help="Read Tankopedia from file",
         )
     except Exception as err:
         error(f"could not add arguments: {err}")
@@ -95,9 +109,13 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
     return True
 
 
-def add_args_file(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
+def add_args_file(
+    parser: ArgumentParser, config: Optional[ConfigParser] = None
+) -> bool:
     debug("starting")
-    parser.add_argument("infile", type=str, metavar="FILE", help="Read Tankopedia from file")
+    parser.add_argument(
+        "infile", type=str, metavar="FILE", help="Read Tankopedia from file"
+    )
     return True
 
 
@@ -121,7 +139,13 @@ def add_args_wg(parser: ArgumentParser, config: Optional[ConfigParser] = None) -
         #     configRU = config["LESTA"]
         #     LESTA_APP_ID = configRU.get("app_id", LESTA_APP_ID)
 
-        parser.add_argument("--wg-app-id", type=str, default=WG_APP_ID, metavar="APP_ID", help="Set WG APP ID")
+        parser.add_argument(
+            "--wg-app-id",
+            type=str,
+            default=WG_APP_ID,
+            metavar="APP_ID",
+            help="Set WG APP ID",
+        )
     except Exception as err:
         error(f"could not add arguments: {err}")
         return False
@@ -140,47 +164,47 @@ async def cmd(args: Namespace) -> bool:
         debug("starting")
 
         tankopedia_new: WGApiTankopedia | None
-        tankopedia_old: WGApiTankopedia | None
+        tankopedia: WGApiTankopedia | None
         if args.tankopedia_cmd == "app":
             if (tankopedia_new := await cmd_app(args)) is None:
-                raise ValueError(f"could not read tankopedia from game files: {args.blitz_app_dir}")
+                raise ValueError(
+                    f"could not read tankopedia from game files: {args.blitz_app_dir}"
+                )
         elif args.tankopedia_cmd == "file":
             if (tankopedia_new := await cmd_file(args)) is None:
                 raise ValueError(f"could not read tankopedia from file: {args.infile}")
         elif args.tankopedia_cmd == "wg":
             if (tankopedia_new := await cmd_wg(args)) is None:
-                raise ValueError(f"could not read tankopedia from WG API: {args.server}")
+                raise ValueError(
+                    f"could not read tankopedia from WG API: {args.server}"
+                )
         else:
             raise NotImplementedError(f"unknown command: {args.tankopedia_cmd}")
 
         if args.update:
-            if (tankopedia_old := await WGApiTankopedia.open_json(args.outfile)) is None:
+            if (tankopedia := await WGApiTankopedia.open_json(args.outfile)) is None:
                 error(f"could not parse old tankopedia: {args.outfile}")
                 return False
         else:
-            tankopedia_old = WGApiTankopedia()
+            tankopedia = WGApiTankopedia()
 
-        new: set[int] = {tank.tank_id for tank in tankopedia_new}
-        old: set[int] = {tank.tank_id for tank in tankopedia_old}
-        added: set[int] = new - old
-        updated: set[int] = new & old
-        updated = {tank_id for tank_id in updated if tankopedia_new[tank_id] != tankopedia_old[tank_id]}
+        added: set[int]
+        updated: set[int]
+        (added, updated) = tankopedia.update(tankopedia_new)
 
-        if args.update:
-            tankopedia_old.update(tankopedia_new)
-            tankopedia_new = tankopedia_old
-
-        if await tankopedia_new.save_json(args.outfile) > 0:
+        if await tankopedia.save_json(args.outfile) > 0:
             if logger.level < logging.WARNING:
                 for tank_id in added:
-                    verbose(f"added:   tank_id={tank_id:<5} {tankopedia_new[tank_id].name}")
+                    verbose(f"added:   tank_id={tank_id:<5} {tankopedia[tank_id].name}")
 
             if logger.level < logging.WARNING:
                 for tank_id in updated:
-                    verbose(f"updated: tank_id={tank_id:<5} {tankopedia_new[tank_id].name}")
+                    verbose(f"updated: tank_id={tank_id:<5} {tankopedia[tank_id].name}")
 
-            message(f"added {len(added)} and updated {len(updated)} tanks to Tankopedia")
-            message(f"saved {len(tankopedia_new)} tanks to Tankopedia ({args.outfile})")
+            message(
+                f"added {len(added)} and updated {len(updated)} tanks to Tankopedia"
+            )
+            message(f"saved {len(tankopedia)} tanks to Tankopedia ({args.outfile})")
         else:
             error(f"writing Tankopedia failed: {args.outfile}")
 
@@ -237,7 +261,9 @@ async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[WGTank]
     if isdir(blitz_app_dir / "assets"):
         blitz_app_dir = blitz_app_dir / "assets"
 
-    list_xml: Path = blitz_app_dir / BLITZAPP_VEHICLES_DIR / nation.name / BLITZAPP_VEHICLE_FILE
+    list_xml: Path = (
+        blitz_app_dir / BLITZAPP_VEHICLES_DIR / nation.name / BLITZAPP_VEHICLE_FILE
+    )
 
     if not isfile(list_xml):
         error(f"cannot open tank file for nation={nation}: {list_xml}")
@@ -250,7 +276,9 @@ async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[WGTank]
             try:
                 tank_xml: dict[str, Any] = tank_list["root"][data]
                 debug(f"reading tank: {tank_xml}")
-                tank = WGTank(tank_id=mk_tank_id(nation, int(tank_xml["id"])), nation=nation)
+                tank = WGTank(
+                    tank_id=mk_tank_id(nation, int(tank_xml["id"])), nation=nation
+                )
                 tank.is_premium = issubclass(type(tank_xml["price"]), dict)
                 tank.tier = EnumVehicleTier(int(tank_xml["level"]))
                 tank.type = read_tank_type(tank_xml["tags"])
@@ -280,7 +308,9 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
             if re_tank.match(key):
                 if re_skip.match(key.split(":")[1]):
                     continue
-                if key not in tank_strs:  # some Halloween map variants have the same short name
+                if (
+                    key not in tank_strs
+                ):  # some Halloween map variants have the same short name
                     tank_strs[key] = value
         except KeyError as err:
             error(err)
