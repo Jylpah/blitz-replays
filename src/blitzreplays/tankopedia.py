@@ -208,6 +208,7 @@ async def cmd(args: Namespace) -> bool:
         else:
             error(f"writing Tankopedia failed: {args.outfile}")
 
+        return True
     except Exception as err:
         error(f"{err}")
     return False
