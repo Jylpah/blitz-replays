@@ -167,3 +167,7 @@ cython_debug/
 /tmp/
 *.swp
 /*.json
+
+# utils
+
+/*.py
