@@ -54,19 +54,49 @@ async def main() -> None:
             verbose(f"config file: {CONFIG_FILE}")
             break
 
-    parser = argparse.ArgumentParser(description="Read/update Blitz metadata", add_help=False)
+    parser = argparse.ArgumentParser(
+        description="Read/update Blitz metadata", add_help=False
+    )
     arggroup_verbosity = parser.add_mutually_exclusive_group()
     arggroup_verbosity.add_argument(
-        "--debug", "-d", dest="LOG_LEVEL", action="store_const", const=logging.DEBUG, help="Debug mode"
+        "--debug",
+        "-d",
+        dest="LOG_LEVEL",
+        action="store_const",
+        const=logging.DEBUG,
+        help="Debug mode",
     )
     arggroup_verbosity.add_argument(
-        "--verbose", "-v", dest="LOG_LEVEL", action="store_const", const=logging.INFO, help="Verbose mode"
+        "--verbose",
+        "-v",
+        dest="LOG_LEVEL",
+        action="store_const",
+        const=logging.INFO,
+        help="Verbose mode",
     )
     arggroup_verbosity.add_argument(
-        "--silent", "-s", dest="LOG_LEVEL", action="store_const", const=logging.CRITICAL, help="Silent mode"
+        "--silent",
+        "-s",
+        dest="LOG_LEVEL",
+        action="store_const",
+        const=logging.CRITICAL,
+        help="Silent mode",
     )
-    parser.add_argument("--log", type=str, nargs="?", default=None, const=f"{LOG}", help="Enable file logging")
-    parser.add_argument("--config", type=str, default=CONFIG_FILE, metavar="CONFIG", help="Read config from CONFIG")
+    parser.add_argument(
+        "--log",
+        type=str,
+        nargs="?",
+        default=None,
+        const=f"{LOG}",
+        help="Enable file logging",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=CONFIG_FILE,
+        metavar="CONFIG",
+        help="Read config from CONFIG",
+    )
     parser.set_defaults(LOG_LEVEL=logging.WARNING)
 
     args, argv = parser.parse_known_args()
@@ -79,7 +109,10 @@ async def main() -> None:
         # logging.ERROR: 		'%(levelname)s: %(message)s'
     }
     MultilevelFormatter.setLevels(
-        logger, fmts=logger_conf, fmt="%(levelname)s: %(funcName)s(): %(message)s", log_file=args.log
+        logger,
+        fmts=logger_conf,
+        fmt="%(levelname)s: %(funcName)s(): %(message)s",
+        log_file=args.log,
     )
     error = logger.error
     message = logger.warning
@@ -103,7 +136,9 @@ async def main() -> None:
     )
     cmd_parsers.required = True
 
-    tankopedia_parser = cmd_parsers.add_parser("tankopedia", aliases=["tp"], help="tankopedia help")
+    tankopedia_parser = cmd_parsers.add_parser(
+        "tankopedia", aliases=["tp"], help="tankopedia help"
+    )
     maps_parser = cmd_parsers.add_parser("maps", aliases=["map"], help="maps help")
 
     if not tankopedia.add_args(tankopedia_parser, config):
@@ -120,9 +155,11 @@ async def main() -> None:
     debug(str(args))
 
     if args.main_cmd == "tankopedia":
-        await tankopedia.cmd(args)
+        if not await tankopedia.cmd(args):
+            sys.exit(1)
     elif args.main_cmd in ["maps", "map"]:
-        await maps.cmd(args)
+        if not await maps.cmd(args):
+            sys.exit(1)
 
 
 # ### main()
