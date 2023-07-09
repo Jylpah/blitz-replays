@@ -81,7 +81,15 @@ def tankopedia_tanks() -> int:
 
 FIXTURE_DIR = Path(dirname(realpath(__file__)))
 
-TANKOPEDIA_FILES = pytest.mark.datafiles(FIXTURE_DIR / "01_Tankopedia.json")
+BLITZ_APP_DIR: str = "BlitzApp"
+TANKOPEDIA_NEW: str = "01_Tankopedia_new.json"
+
+TANKOPEDIA_FILES = pytest.mark.datafiles(
+    FIXTURE_DIR / "01_Tankopedia_old.json",
+    FIXTURE_DIR / BLITZ_APP_DIR,
+    FIXTURE_DIR / TANKOPEDIA_NEW,
+    keep_top_dir=True,
+)
 
 
 ########################################################
@@ -92,15 +100,20 @@ TANKOPEDIA_FILES = pytest.mark.datafiles(FIXTURE_DIR / "01_Tankopedia.json")
 
 
 @pytest.mark.asyncio
-@TANKOPEDIA_FILES
 @pytest.mark.parametrize(
     "args,added,updated",
-    [(["app", "BlitzApp"], 609, 0), (["file", "01_Tankopedia_new.json"], 609, 0)],
+    [
+        (["app", BLITZ_APP_DIR], 609, 0),
+        (["file", TANKOPEDIA_NEW], 609, 0),
+    ],
 )
+@TANKOPEDIA_FILES
 async def test_1_blitz_data_tankopedia_app(
     tmp_path: Path, datafiles: Path, args: list[str], added: int, updated: int
 ) -> None:
-    OUTFILE: str = "test_1_tankopedia.json"
+    OUTFILE: str = f'{tmp_path / "test_1_tankopedia.json"}'
+    args[-1] = f"{(tmp_path / args[-1]).resolve()}"
+
     completed_process = subprocess.run(
         ["python", "blitzdata.py", "tankopedia", "--outfile", OUTFILE] + args
     )
