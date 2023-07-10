@@ -249,8 +249,6 @@ async def cmd_wg(args: Namespace) -> WGApiTankopedia | None:
     async with WGApi(app_id=args.wg_app_id) as wg:
         return await wg.get_tankopedia(region=Region(args.region))
 
-    return None
-
 
 async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[WGTank]:
     """Extract tanks from BLITZAPP_VEHICLE_FILE 'list.xml' file for a nation"""
