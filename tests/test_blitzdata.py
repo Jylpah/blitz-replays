@@ -83,9 +83,10 @@ FIXTURE_DIR = Path(dirname(realpath(__file__)))
 
 BLITZ_APP_DIR: str = "BlitzApp"
 TANKOPEDIA_NEW: str = "01_Tankopedia_new.json"
+TANKOPEDIA_OLD: str = "01_Tankopedia_old.json"
 
 TANKOPEDIA_FILES = pytest.mark.datafiles(
-    FIXTURE_DIR / "01_Tankopedia_old.json",
+    FIXTURE_DIR / TANKOPEDIA_OLD,
     FIXTURE_DIR / BLITZ_APP_DIR,
     FIXTURE_DIR / TANKOPEDIA_NEW,
     keep_top_dir=True,
@@ -108,13 +109,65 @@ TANKOPEDIA_FILES = pytest.mark.datafiles(
     ],
 )
 @TANKOPEDIA_FILES
-async def test_1_blitz_data_tankopedia_app(
+async def test_1_blitz_data_tankopedia(
     tmp_path: Path, datafiles: Path, args: list[str], added: int, updated: int
 ) -> None:
     OUTFILE: str = f'{tmp_path / "test_1_tankopedia.json"}'
+    cmd: str = args[0]
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
     completed_process = subprocess.run(
         ["python", "blitzdata.py", "tankopedia", "--outfile", OUTFILE] + args
     )
-    assert completed_process.returncode == 0, f"blitzdata tankopedia {args[0]} failed"
+    assert completed_process.returncode == 0, f"blitzdata tankopedia {cmd} failed"
+
+    assert (
+        tankopedia := await WGApiTankopedia.open_json(OUTFILE)
+    ) is not None, f"could not open results: tankopedia {cmd}"
+
+    assert len(tankopedia) == added, f"incorrect number of tanks: tankopedia {cmd}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "args,added,updated",
+    [
+        (["app", BLITZ_APP_DIR], 609, 0),
+        (["file", TANKOPEDIA_NEW], 609, 0),
+    ],
+)
+@TANKOPEDIA_FILES
+async def test_2_blitz_data_tankopedia_update(
+    tmp_path: Path, datafiles: Path, args: list[str], added: int, updated: int
+) -> None:
+    OUTFILE: str = f"{tmp_path / TANKOPEDIA_OLD}"
+    cmd: str = args[0]
+    args[-1] = f"{(tmp_path / args[-1]).resolve()}"
+
+    completed_process = subprocess.run(
+        ["python", "blitzdata.py", "tankopedia", "--update", "--outfile", OUTFILE]
+        + args
+    )
+    assert completed_process.returncode == 0, f"blitzdata tankopedia {cmd} failed"
+
+    assert (
+        tankopedia := await WGApiTankopedia.open_json(OUTFILE)
+    ) is not None, f"could not open results: tankopedia {cmd}"
+
+    assert len(tankopedia) == added, f"incorrect number of tanks: tankopedia {cmd}"
+
+
+@pytest.mark.asyncio
+async def test_3_blitz_data_tankopedia_wg(tmp_path: Path) -> None:
+    OUTFILE: str = f"{tmp_path / 'tankopedia-exported.json'}"
+
+    completed_process = subprocess.run(
+        ["python", "blitzdata.py", "tankopedia", "--outfile", OUTFILE, "wg"]
+    )
+    assert completed_process.returncode == 0, f"blitzdata tankopedia wg failed"
+
+    assert (
+        tankopedia := await WGApiTankopedia.open_json(OUTFILE)
+    ) is not None, f"could not open results: tankopedia wg"
+
+    assert len(tankopedia) > 500, f"incorrect number of tanks: tankopedia wg"
