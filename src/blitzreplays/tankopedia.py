@@ -24,6 +24,7 @@ from blitzutils import (
     EnumVehicleTypeInt,
     EnumVehicleTypeStr,
 )
+from blitzutils import WGTank, WGApiTankopedia, WGApi, WoTBlitzTankString, add_args_wg
 from dvplc import decode_dvpl, decode_dvpl_file
 
 logger = logging.getLogger()
@@ -53,18 +54,17 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
     try:
         debug("starting")
         TANKS_FILE: str = "tanks.json"
+        WG_APP_ID: str = WGApi.DEFAULT_WG_APP_ID
 
         tankopedia_parsers = parser.add_subparsers(
             dest="tankopedia_cmd",
             title="tankopedia commands",
             description="valid commands",
-            metavar="app-data | file | wg",
+            metavar="app | file | wg",
         )
         tankopedia_parsers.required = True
 
-        app_parser = tankopedia_parsers.add_parser(
-            "app", aliases=["app-data"], help="tankopedia app help"
-        )
+        app_parser = tankopedia_parsers.add_parser("app", help="tankopedia app help")
         if not add_args_app(app_parser, config=config):
             raise Exception("Failed to define argument parser for: tankopedia app")
 
@@ -73,7 +73,7 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
             raise Exception("Failed to define argument parser for: tankopedia file")
 
         wg_parser = tankopedia_parsers.add_parser("wg", help="tankopedia wg help")
-        if not add_args_wg(wg_parser, config=config):
+        if not add_args_wgapi(wg_parser, config=config):
             raise Exception("Failed to define argument parser for: tankopedia wg")
 
         if config is not None and "METADATA" in config.sections():
@@ -89,10 +89,14 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
             help=f"Write Tankopedia to file ({TANKS_FILE})",
         )
         parser.add_argument(
-            "-u", "--update", action="store_true", help="Update Tankopedia"
+            "-f",
+            "--force",
+            action="store_true",
+            help="Overwrite Tankopedia instead of updating it",
         )
+
         debug("Finished")
-        return True
+        return add_args_wg(parser=parser, config=config)
     except Exception as err:
         error(f"{err}")
     return False
@@ -110,7 +114,7 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
             type=str,
             default=BLITZAPP_DIR,
             metavar="BLTIZ_APP_DIR",
-            help="Read Tankopedia from file",
+            help="Read Tankopedia game files",
         )
     except Exception as err:
         error(f"could not add arguments: {err}")
@@ -128,36 +132,10 @@ def add_args_file(
     return True
 
 
-def add_args_wg(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
-    debug("starting")
-    WG_APP_ID: str = WGApi.DEFAULT_WG_APP_ID
-    try:
-        parser.add_argument(
-            "region",
-            default="eu",
-            nargs="?",
-            choices=list(Region.API_regions()),
-            metavar="REGION",
-            help="Read Tankopedia from WG API server",
-        )
-        if config is not None and "WG" in config.sections():
-            configWG = config["WG"]
-            WG_APP_ID = configWG.get("app_id", WG_APP_ID)
-
-        # if config is not None and "LESTA" in config.sections():
-        #     configRU = config["LESTA"]
-        #     LESTA_APP_ID = configRU.get("app_id", LESTA_APP_ID)
-
-        parser.add_argument(
-            "--wg-app-id",
-            type=str,
-            default=WG_APP_ID,
-            metavar="APP_ID",
-            help="Set WG APP ID",
-        )
-    except Exception as err:
-        error(f"could not add arguments: {err}")
-        return False
+def add_args_wgapi(
+    parser: ArgumentParser, config: Optional[ConfigParser] = None
+) -> bool:
+    """Dummy since the WGApi() params are read in the parent"""
     return True
 
 
@@ -190,7 +168,7 @@ async def cmd(args: Namespace) -> bool:
         else:
             raise NotImplementedError(f"unknown command: {args.tankopedia_cmd}")
 
-        if args.update:
+        if not args.force and isfile(args.outfile):
             if (tankopedia := await WGApiTankopedia.open_json(args.outfile)) is None:
                 error(f"could not parse old tankopedia: {args.outfile}")
                 return False
@@ -245,8 +223,22 @@ async def cmd_app(args: Namespace) -> WGApiTankopedia | None:
         tank_strs: dict[str, str] = await read_tank_strs(blitz_app_dir)
         tankopedia = WGApiTankopedia()
 
-        for tank in convert_tank_names(tanks, tank_strs):
+        tanks_ok: list[WGTank]
+        tanks_nok: list[WGTank]
+        tanks_ok, tanks_nok = convert_tank_names(tanks, tank_strs)
+        for tank in tanks_ok:
             tankopedia.add(tank)
+
+        async with WGApi(default_region=Region(args.wg_region), rate_limit=0) as wg:
+            for tank in tanks_nok:
+                if (
+                    tank.name is not None
+                    and (tank_str := await wg.get_tank_str(tank.name)) is not None
+                ):
+                    tank.name = tank_str.user_string
+                else:
+                    error(f"could not fetch tank name for tank_id={tank.tank_id}")
+                tankopedia.add(tank)
 
         return tankopedia
     except Exception as err:
@@ -357,25 +349,30 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
     return tank_strs
 
 
-def convert_tank_names(tanks: list[WGTank], tank_strs: dict[str, str]) -> list[WGTank]:
-    """Convert tank names for Tankopedia"""
+def convert_tank_names(
+    tanks: list[WGTank], tank_strs: dict[str, str]
+) -> tuple[list[WGTank], list[WGTank]]:
+    """Convert tank names for Tankopedia based on tank user strings in /Data/Strings/en.yaml
+    Returns 2 lists: converted, not_converted"""
     debug("starting")
 
-    res: list[WGTank] = list()
+    converted: list[WGTank] = list()
+    not_converted: list[WGTank] = list()
+
     for tank in tanks:
         try:
             if tank.name in tank_strs:
                 tank.name = tank_strs[tank.name]
+                converted.append(tank)
             elif tank.name is not None:
                 tank.name = tank.name.split(":")[1]
+                not_converted.append(tank)
             else:
                 error(f"no name defined for tank_id={tank.tank_id}: {tank.name}")
         except KeyError as err:
             error(f"could not convert name tank_id={tank.tank_id}: {tank.name}: {err}")
-        finally:
-            res.append(tank)
 
-    return res
+    return converted, not_converted
 
 
 def mk_tank_id(nation: EnumNation, tank_id: int) -> int:
