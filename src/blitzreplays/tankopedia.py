@@ -3,7 +3,8 @@ from configparser import ConfigParser
 from datetime import datetime
 from typing import Optional, Literal, Any, cast
 from asyncio import Task, TaskGroup, create_task, gather
-from os.path import isdir, isfile, exists
+from os.path import isfile
+from os import unlink
 from pathlib import Path
 from re import Pattern, Match, compile
 from sortedcollections import SortedDict  # type: ignore
@@ -320,7 +321,7 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
     finally:
         if is_dvpl:
             debug("deleting temp file: %s", str(filename))
-            os.unlink(filename)
+            unlink(filename)
 
     re_tank: Pattern = compile("^#\\w+?_vehicles:")
     # re_skip: Pattern = compile("(^Chassis_|^Turret_|_short$)")
