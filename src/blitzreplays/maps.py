@@ -3,14 +3,16 @@ from configparser import ConfigParser
 from datetime import datetime
 from typing import Optional, Literal, Any, cast
 from pathlib import Path
-from os.path import isdir, isfile
+from os import unlink
 from re import Pattern, Match, compile
 import aiofiles
 import yaml
 from pydantic import ValidationError
 import logging
 
+from pyutils.utils import get_temp_filename
 from blitzutils import Map, Maps
+from dvplc import decode_dvpl, decode_dvpl_file
 
 logger = logging.getLogger()
 error = logger.error
@@ -41,7 +43,9 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
         )
         maps_parsers.required = True
 
-        app_parser = maps_parsers.add_parser("app", aliases=["app-data"], help="maps app help")
+        app_parser = maps_parsers.add_parser(
+            "app", aliases=["app-data"], help="maps app help"
+        )
         if not add_args_app(app_parser, config=config):
             raise Exception("Failed to define argument parser for: maps app")
 
@@ -78,7 +82,11 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
             configOptions = config["METADATA"]
             BLITZAPP_DIR = configOptions.get("blitz_app_dir", BLITZAPP_DIR)
         parser.add_argument(
-            "blitz_app_dir", type=str, default=BLITZAPP_DIR, metavar="BLITZ_APP_DIR", help="Blitz app dir"
+            "blitz_app_dir",
+            type=str,
+            default=BLITZAPP_DIR,
+            metavar="BLITZ_APP_DIR",
+            help="Blitz app dir",
         )
     except Exception as err:
         error(f"could not add arguments: {err}")
@@ -86,9 +94,13 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
     return True
 
 
-def add_args_file(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
+def add_args_file(
+    parser: ArgumentParser, config: Optional[ConfigParser] = None
+) -> bool:
     debug("starting")
-    parser.add_argument("file", type=str, metavar="FILE", help="Read Tankopedia from file")
+    parser.add_argument(
+        "file", type=str, metavar="FILE", help="Read Tankopedia from file"
+    )
     return True
 
 
@@ -107,7 +119,9 @@ async def cmd(args: Namespace) -> bool:
 
         if args.maps_cmd == "app":
             if (maps_new := await cmd_app(args)) is None:
-                raise ValueError(f"could not read maps from game files: {args.blitz_app_dir}")
+                raise ValueError(
+                    f"could not read maps from game files: {args.blitz_app_dir}"
+                )
         elif args.maps_cmd == "file":
             if (maps_new := await cmd_file(args)) is None:
                 raise ValueError(f"could not read maps from file: {args.infile}")
@@ -153,14 +167,36 @@ async def cmd(args: Namespace) -> bool:
 async def cmd_app(args: Namespace) -> Maps | None:
     """read maps from game files"""
     debug("starting")
+    is_dvpl: bool = False
     maps = Maps()
-    filename: Path = Path(f"{args.blitz_app_dir}/{BLITZAPP_STRINGS}")
+    user_strs: dict[str, str] = dict()
+    filename: Path = Path(args.blitz_app_dir)
     try:
+        if (filename / "assets").is_dir():
+            filename = filename / "assets"
+        filename = filename / BLITZAPP_STRINGS
+
+        if filename.is_file():
+            pass
+        elif (filename := filename.parent / (filename.name + ".dvpl")).is_file():
+            is_dvpl = True
+            debug("decoding DVPL file: %s", filename.resolve())
+            temp_fn: Path = get_temp_filename("blitz-data.")
+            debug("using temporary file: %s", str(temp_fn))
+            if not await decode_dvpl_file(str(filename), str(temp_fn)):
+                raise IOError(f"could not decode DVPL file: {filename}")
+            filename = temp_fn
+
         debug(f"Opening file: %s for reading map strings", str(filename))
-        user_strs: dict[str, str] = dict()
         with open(filename, "r", encoding="utf8") as strings_file:
             user_strs = yaml.safe_load(strings_file)
-
+    except:
+        raise
+    finally:
+        if is_dvpl:
+            debug("deleting temp file: %s", str(filename))
+            unlink(filename)
+    try:
         re_map: Pattern = compile(r"^#maps:(\w+?):.+?$")
         match: Match | None
         for key, value in user_strs.items():
