@@ -1,6 +1,6 @@
 [project]
 name = "blitz-replays"
-version = "0.1"
+version = "0.2"
 authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"
@@ -29,8 +29,8 @@ dependencies = [
 	# "lz4>=4.3.2",
 	"sortedcollections>=2.1.0",
 	"PyYAML>=6.0",
-	# "pyutils @ git+https://github.com/Jylpah/pyutils.git",
 	"blitz-utils @ git+https://github.com/Jylpah/blitz-utils.git",
+	"dvplc @ git+https://github.com/Jylpah/dvplc.git",
 ]
 
 [project.optional-dependencies]
