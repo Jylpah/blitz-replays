@@ -8,11 +8,14 @@ from pathlib import Path
 from re import Pattern, Match, compile
 from sortedcollections import SortedDict  # type: ignore
 from pydantic import ValidationError
+from random import choices
 import aiofiles
 import logging
 import xmltodict  # type: ignore
 import yaml
 import os
+import string
+from tempfile import TemporaryFile, gettempdir, gettempprefix
 
 from blitzutils import (
     Region,
@@ -21,7 +24,7 @@ from blitzutils import (
     EnumVehicleTypeInt,
     EnumVehicleTypeStr,
 )
-from blitzutils import WGTank, WGApiTankopedia, WGApi, WoTBlitzTankString
+from dvplc import decode_dvpl, decode_dvpl_file
 
 logger = logging.getLogger()
 error = logger.error
@@ -38,6 +41,12 @@ BLITZAPP_VEHICLE_FILE: str = "list.xml"
 # add_args_ functions
 #
 ########################################################
+
+
+def get_temp_filename(prefix: str = "", length: int = 10) -> Path:
+    """Return temp filename as Path"""
+    s = string.ascii_letters + string.digits
+    return Path(gettempdir()) / (prefix + "".join(choices(s, k=length)))
 
 
 def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
@@ -219,15 +228,21 @@ async def cmd_app(args: Namespace) -> WGApiTankopedia | None:
     debug("starting")
     tasks: list[Task] = []
     try:
+        blitz_app_dir: Path = Path(args.blitz_app_dir)
+        if (blitz_app_dir / "assets").is_dir():
+            # WG has changed the location of Data directory - at least in steam client
+            blitz_app_dir = blitz_app_dir / "assets"
+        debug("base dir for game files: %s", str(blitz_app_dir))
+
         for nation in EnumNation:
-            tasks.append(create_task(extract_tanks(Path(args.blitz_app_dir), nation)))
+            tasks.append(create_task(extract_tanks(blitz_app_dir, nation)))
 
         tanks: list[WGTank] = list()
         # user_strs: dict[int, str] = dict()
         for nation_tanks in await gather(*tasks):
             tanks.extend(nation_tanks)
 
-        tank_strs: dict[str, str] = await read_tank_strs(Path(args.blitz_app_dir))
+        tank_strs: dict[str, str] = await read_tank_strs(blitz_app_dir)
         tankopedia = WGApiTankopedia()
 
         for tank in convert_tank_names(tanks, tank_strs):
@@ -250,45 +265,50 @@ async def cmd_wg(args: Namespace) -> WGApiTankopedia | None:
         return await wg.get_tankopedia(region=Region(args.region))
 
 
+def extract_tanks_xml(tankopedia: dict[str, Any], nation: EnumNation) -> list[WGTank]:
+    """Extract tanks from a parsed XML"""
+    tanks: list[WGTank] = list()
+    for data in tankopedia["root"].keys():
+        try:
+            tank_xml: dict[str, Any] = tankopedia["root"][data]
+            debug(f"reading tank: {tank_xml}")
+            tank = WGTank(
+                tank_id=mk_tank_id(nation, int(tank_xml["id"])), nation=nation
+            )
+            tank.is_premium = issubclass(type(tank_xml["price"]), dict)
+            tank.tier = EnumVehicleTier(int(tank_xml["level"]))
+            tank.type = read_tank_type(tank_xml["tags"])
+            tank.name = tank_xml["userString"]  # Need to be converted later
+            tanks.append(tank)
+            debug("Read tank_id=%d", tank.tank_id)
+        except KeyError as err:
+            error("Failed to read item=%s: %s", data, str(err))
+        except Exception as err:
+            error("Failed to read item=%s: %s", data, str(err))
+    return tanks
+
+
 async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[WGTank]:
     """Extract tanks from BLITZAPP_VEHICLE_FILE 'list.xml' file for a nation"""
 
     tanks: list[WGTank] = list()
-    # user_strs: dict[int, str] = dict()
-
-    # WG has changed the location of Data directory - at least in steam client
-    if isdir(blitz_app_dir / "assets"):
-        blitz_app_dir = blitz_app_dir / "assets"
-
     list_xml: Path = (
         blitz_app_dir / BLITZAPP_VEHICLES_DIR / nation.name / BLITZAPP_VEHICLE_FILE
     )
-
-    if not isfile(list_xml):
+    tankopedia: dict[str, Any]
+    if list_xml.is_file():
+        debug(f"Opening file: {list_xml} nation={nation}")
+        async with aiofiles.open(list_xml, "r", encoding="utf8") as f:
+            tankopedia = xmltodict.parse(await f.read())
+    elif (list_xml := list_xml.parent / (list_xml.name + ".dvpl")).is_file():
+        debug(f"Opening file (DVPL): {list_xml} nation={nation}")
+        async with aiofiles.open(list_xml, "rb") as f:
+            data, _ = decode_dvpl(await f.read(), quiet=True)
+            tankopedia = xmltodict.parse(data)
+    else:
         error(f"cannot open tank file for nation={nation}: {list_xml}")
         return tanks
-
-    debug(f"Opening file: {list_xml} nation={nation}")
-    async with aiofiles.open(list_xml, "r", encoding="utf8") as f:
-        tank_list: dict[str, Any] = xmltodict.parse(await f.read())
-        for data in tank_list["root"].keys():
-            try:
-                tank_xml: dict[str, Any] = tank_list["root"][data]
-                debug(f"reading tank: {tank_xml}")
-                tank = WGTank(
-                    tank_id=mk_tank_id(nation, int(tank_xml["id"])), nation=nation
-                )
-                tank.is_premium = issubclass(type(tank_xml["price"]), dict)
-                tank.tier = EnumVehicleTier(int(tank_xml["level"]))
-                tank.type = read_tank_type(tank_xml["tags"])
-                tank.name = tank_xml["userString"]  # Need to be converted later
-                tanks.append(tank)
-                debug("Read tank_id=%d", tank.tank_id)
-            except KeyError as err:
-                error("Failed to read item=%s: %s", data, str(err))
-            except Exception as err:
-                error("Failed to read item=%s: %s", data, str(err))
-    return tanks
+    return extract_tanks_xml(tankopedia, nation)
 
 
 async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
@@ -296,12 +316,32 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
     tank_strs: dict[str, str] = dict()
     filename: Path = blitz_app_dir / BLITZAPP_STRINGS
     user_strs: dict[str, str] = dict()
-    debug(f"Opening file: %s for reading UserStrings", str(filename))
-    with open(filename, "r", encoding="utf8") as strings_file:
-        user_strs = yaml.safe_load(strings_file)
+    is_dvpl: bool = False
+    try:
+        if filename.is_file():
+            pass
+        elif (filename := filename.parent / (filename.name + ".dvpl")).is_file():
+            is_dvpl = True
+            debug("decoding DVPL file: %s", filename.resolve())
+            temp_fn: Path = get_temp_filename("blitz-data.")
+            debug("using temporary file: %s", str(temp_fn))
+            if not await decode_dvpl_file(str(filename), str(temp_fn)):
+                raise IOError(f"could not decode DVPL file: {filename}")
+            filename = temp_fn
+
+        debug(f"Opening file: %s for reading UserStrings", str(filename))
+        with open(filename, "r", encoding="utf8") as strings_file:
+            user_strs = yaml.safe_load(strings_file)
+    except:
+        raise
+    finally:
+        if is_dvpl:
+            debug("deleting temp file: %s", str(filename))
+            os.unlink(filename)
 
     re_tank: Pattern = compile("^#\\w+?_vehicles:")
-    re_skip: Pattern = compile("(^Chassis_|^Turret_|_short$)")
+    # re_skip: Pattern = compile("(^Chassis_|^Turret_|_short$)")
+    re_skip: Pattern = compile("(^Chassis_|^Turret_)")
     for key, value in user_strs.items():
         try:
             if re_tank.match(key):
