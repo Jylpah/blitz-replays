@@ -3,19 +3,17 @@ from configparser import ConfigParser
 from datetime import datetime
 from typing import Optional, Literal, Any, cast
 from asyncio import Task, TaskGroup, create_task, gather
-from os.path import isdir, isfile, exists
+from os.path import isfile
+from os import unlink
 from pathlib import Path
 from re import Pattern, Match, compile
 from sortedcollections import SortedDict  # type: ignore
 from pydantic import ValidationError
-from random import choices
 import aiofiles
 import logging
 import xmltodict  # type: ignore
 import yaml
 import os
-import string
-from tempfile import TemporaryFile, gettempdir, gettempprefix
 
 from blitzutils import (
     Region,
@@ -26,6 +24,7 @@ from blitzutils import (
 )
 from blitzutils import WGTank, WGApiTankopedia, WGApi, WoTBlitzTankString, add_args_wg
 from dvplc import decode_dvpl, decode_dvpl_file
+from pyutils.utils import get_temp_filename
 
 logger = logging.getLogger()
 error = logger.error
@@ -44,17 +43,10 @@ BLITZAPP_VEHICLE_FILE: str = "list.xml"
 ########################################################
 
 
-def get_temp_filename(prefix: str = "", length: int = 10) -> Path:
-    """Return temp filename as Path"""
-    s = string.ascii_letters + string.digits
-    return Path(gettempdir()) / (prefix + "".join(choices(s, k=length)))
-
-
 def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
     try:
         debug("starting")
         TANKS_FILE: str = "tanks.json"
-        WG_APP_ID: str = WGApi.DEFAULT_WG_APP_ID
 
         tankopedia_parsers = parser.add_subparsers(
             dest="tankopedia_cmd",
@@ -329,7 +321,7 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
     finally:
         if is_dvpl:
             debug("deleting temp file: %s", str(filename))
-            os.unlink(filename)
+            unlink(filename)
 
     re_tank: Pattern = compile("^#\\w+?_vehicles:")
     # re_skip: Pattern = compile("(^Chassis_|^Turret_|_short$)")
