@@ -254,7 +254,7 @@ async def cmd_file(args: Namespace) -> WGApiTankopedia | None:
 async def cmd_wg(args: Namespace) -> WGApiTankopedia | None:
     debug("starting")
     async with WGApi(app_id=args.wg_app_id) as wg:
-        return await wg.get_tankopedia(region=Region(args.region))
+        return await wg.get_tankopedia(region=Region(args.wg_region))
 
 
 def extract_tanks_xml(tankopedia: dict[str, Any], nation: EnumNation) -> list[WGTank]:
