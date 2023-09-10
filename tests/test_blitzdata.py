@@ -117,7 +117,7 @@ async def test_1_blitz_data_tankopedia(
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
     completed_process = subprocess.run(
-        ["python", "blitzdata.py", "tankopedia", "--outfile", OUTFILE] + args
+        ["python", "blitzdata.py", "tankopedia", "--force", "--outfile", OUTFILE] + args
     )
     assert completed_process.returncode == 0, f"blitzdata tankopedia {cmd} failed"
 
@@ -145,8 +145,7 @@ async def test_2_blitz_data_tankopedia_update(
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
     completed_process = subprocess.run(
-        ["python", "blitzdata.py", "tankopedia", "--update", "--outfile", OUTFILE]
-        + args
+        ["python", "blitzdata.py", "tankopedia", "--outfile", OUTFILE] + args
     )
     assert completed_process.returncode == 0, f"blitzdata tankopedia {cmd} failed"
 

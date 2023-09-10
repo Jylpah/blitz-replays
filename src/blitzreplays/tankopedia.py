@@ -8,11 +8,14 @@ from pathlib import Path
 from re import Pattern, Match, compile
 from sortedcollections import SortedDict  # type: ignore
 from pydantic import ValidationError
+from random import choices
 import aiofiles
 import logging
 import xmltodict  # type: ignore
 import yaml
 import os
+import string
+from tempfile import TemporaryFile, gettempdir, gettempprefix
 
 from blitzutils import (
     Region,
@@ -21,7 +24,8 @@ from blitzutils import (
     EnumVehicleTypeInt,
     EnumVehicleTypeStr,
 )
-from blitzutils import WGTank, WGApiTankopedia, WGApi, WoTBlitzTankString
+from blitzutils import WGTank, WGApiTankopedia, WGApi, WoTBlitzTankString, add_args_wg
+from dvplc import decode_dvpl, decode_dvpl_file
 
 logger = logging.getLogger()
 error = logger.error
@@ -40,22 +44,27 @@ BLITZAPP_VEHICLE_FILE: str = "list.xml"
 ########################################################
 
 
+def get_temp_filename(prefix: str = "", length: int = 10) -> Path:
+    """Return temp filename as Path"""
+    s = string.ascii_letters + string.digits
+    return Path(gettempdir()) / (prefix + "".join(choices(s, k=length)))
+
+
 def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
     try:
         debug("starting")
         TANKS_FILE: str = "tanks.json"
+        WG_APP_ID: str = WGApi.DEFAULT_WG_APP_ID
 
         tankopedia_parsers = parser.add_subparsers(
             dest="tankopedia_cmd",
             title="tankopedia commands",
             description="valid commands",
-            metavar="app-data | file | wg",
+            metavar="app | file | wg",
         )
         tankopedia_parsers.required = True
 
-        app_parser = tankopedia_parsers.add_parser(
-            "app", aliases=["app-data"], help="tankopedia app help"
-        )
+        app_parser = tankopedia_parsers.add_parser("app", help="tankopedia app help")
         if not add_args_app(app_parser, config=config):
             raise Exception("Failed to define argument parser for: tankopedia app")
 
@@ -64,7 +73,7 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
             raise Exception("Failed to define argument parser for: tankopedia file")
 
         wg_parser = tankopedia_parsers.add_parser("wg", help="tankopedia wg help")
-        if not add_args_wg(wg_parser, config=config):
+        if not add_args_wgapi(wg_parser, config=config):
             raise Exception("Failed to define argument parser for: tankopedia wg")
 
         if config is not None and "METADATA" in config.sections():
@@ -80,10 +89,14 @@ def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> b
             help=f"Write Tankopedia to file ({TANKS_FILE})",
         )
         parser.add_argument(
-            "-u", "--update", action="store_true", help="Update Tankopedia"
+            "-f",
+            "--force",
+            action="store_true",
+            help="Overwrite Tankopedia instead of updating it",
         )
+
         debug("Finished")
-        return True
+        return add_args_wg(parser=parser, config=config)
     except Exception as err:
         error(f"{err}")
     return False
@@ -101,7 +114,7 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
             type=str,
             default=BLITZAPP_DIR,
             metavar="BLTIZ_APP_DIR",
-            help="Read Tankopedia from file",
+            help="Read Tankopedia game files",
         )
     except Exception as err:
         error(f"could not add arguments: {err}")
@@ -119,36 +132,10 @@ def add_args_file(
     return True
 
 
-def add_args_wg(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
-    debug("starting")
-    WG_APP_ID: str = WGApi.DEFAULT_WG_APP_ID
-    try:
-        parser.add_argument(
-            "region",
-            default="eu",
-            nargs="?",
-            choices=list(Region.API_regions()),
-            metavar="REGION",
-            help="Read Tankopedia from WG API server",
-        )
-        if config is not None and "WG" in config.sections():
-            configWG = config["WG"]
-            WG_APP_ID = configWG.get("app_id", WG_APP_ID)
-
-        # if config is not None and "LESTA" in config.sections():
-        #     configRU = config["LESTA"]
-        #     LESTA_APP_ID = configRU.get("app_id", LESTA_APP_ID)
-
-        parser.add_argument(
-            "--wg-app-id",
-            type=str,
-            default=WG_APP_ID,
-            metavar="APP_ID",
-            help="Set WG APP ID",
-        )
-    except Exception as err:
-        error(f"could not add arguments: {err}")
-        return False
+def add_args_wgapi(
+    parser: ArgumentParser, config: Optional[ConfigParser] = None
+) -> bool:
+    """Dummy since the WGApi() params are read in the parent"""
     return True
 
 
@@ -181,7 +168,7 @@ async def cmd(args: Namespace) -> bool:
         else:
             raise NotImplementedError(f"unknown command: {args.tankopedia_cmd}")
 
-        if args.update:
+        if not args.force and isfile(args.outfile):
             if (tankopedia := await WGApiTankopedia.open_json(args.outfile)) is None:
                 error(f"could not parse old tankopedia: {args.outfile}")
                 return False
@@ -219,19 +206,39 @@ async def cmd_app(args: Namespace) -> WGApiTankopedia | None:
     debug("starting")
     tasks: list[Task] = []
     try:
+        blitz_app_dir: Path = Path(args.blitz_app_dir)
+        if (blitz_app_dir / "assets").is_dir():
+            # WG has changed the location of Data directory - at least in steam client
+            blitz_app_dir = blitz_app_dir / "assets"
+        debug("base dir for game files: %s", str(blitz_app_dir))
+
         for nation in EnumNation:
-            tasks.append(create_task(extract_tanks(Path(args.blitz_app_dir), nation)))
+            tasks.append(create_task(extract_tanks(blitz_app_dir, nation)))
 
         tanks: list[WGTank] = list()
         # user_strs: dict[int, str] = dict()
         for nation_tanks in await gather(*tasks):
             tanks.extend(nation_tanks)
 
-        tank_strs: dict[str, str] = await read_tank_strs(Path(args.blitz_app_dir))
+        tank_strs: dict[str, str] = await read_tank_strs(blitz_app_dir)
         tankopedia = WGApiTankopedia()
 
-        for tank in convert_tank_names(tanks, tank_strs):
+        tanks_ok: list[WGTank]
+        tanks_nok: list[WGTank]
+        tanks_ok, tanks_nok = convert_tank_names(tanks, tank_strs)
+        for tank in tanks_ok:
             tankopedia.add(tank)
+
+        async with WGApi(default_region=Region(args.wg_region), rate_limit=0) as wg:
+            for tank in tanks_nok:
+                if (
+                    tank.name is not None
+                    and (tank_str := await wg.get_tank_str(tank.name)) is not None
+                ):
+                    tank.name = tank_str.user_string
+                else:
+                    error(f"could not fetch tank name for tank_id={tank.tank_id}")
+                tankopedia.add(tank)
 
         return tankopedia
     except Exception as err:
@@ -247,48 +254,53 @@ async def cmd_file(args: Namespace) -> WGApiTankopedia | None:
 async def cmd_wg(args: Namespace) -> WGApiTankopedia | None:
     debug("starting")
     async with WGApi(app_id=args.wg_app_id) as wg:
-        return await wg.get_tankopedia(region=Region(args.region))
+        return await wg.get_tankopedia(region=Region(args.wg_region))
+
+
+def extract_tanks_xml(tankopedia: dict[str, Any], nation: EnumNation) -> list[WGTank]:
+    """Extract tanks from a parsed XML"""
+    tanks: list[WGTank] = list()
+    for data in tankopedia["root"].keys():
+        try:
+            tank_xml: dict[str, Any] = tankopedia["root"][data]
+            debug(f"reading tank: {tank_xml}")
+            tank = WGTank(
+                tank_id=mk_tank_id(nation, int(tank_xml["id"])), nation=nation
+            )
+            tank.is_premium = issubclass(type(tank_xml["price"]), dict)
+            tank.tier = EnumVehicleTier(int(tank_xml["level"]))
+            tank.type = read_tank_type(tank_xml["tags"])
+            tank.name = tank_xml["userString"]  # Need to be converted later
+            tanks.append(tank)
+            debug("Read tank_id=%d", tank.tank_id)
+        except KeyError as err:
+            error("Failed to read item=%s: %s", data, str(err))
+        except Exception as err:
+            error("Failed to read item=%s: %s", data, str(err))
+    return tanks
 
 
 async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[WGTank]:
     """Extract tanks from BLITZAPP_VEHICLE_FILE 'list.xml' file for a nation"""
 
     tanks: list[WGTank] = list()
-    # user_strs: dict[int, str] = dict()
-
-    # WG has changed the location of Data directory - at least in steam client
-    if isdir(blitz_app_dir / "assets"):
-        blitz_app_dir = blitz_app_dir / "assets"
-
     list_xml: Path = (
         blitz_app_dir / BLITZAPP_VEHICLES_DIR / nation.name / BLITZAPP_VEHICLE_FILE
     )
-
-    if not isfile(list_xml):
+    tankopedia: dict[str, Any]
+    if list_xml.is_file():
+        debug(f"Opening file: {list_xml} nation={nation}")
+        async with aiofiles.open(list_xml, "r", encoding="utf8") as f:
+            tankopedia = xmltodict.parse(await f.read())
+    elif (list_xml := list_xml.parent / (list_xml.name + ".dvpl")).is_file():
+        debug(f"Opening file (DVPL): {list_xml} nation={nation}")
+        async with aiofiles.open(list_xml, "rb") as f:
+            data, _ = decode_dvpl(await f.read(), quiet=True)
+            tankopedia = xmltodict.parse(data)
+    else:
         error(f"cannot open tank file for nation={nation}: {list_xml}")
         return tanks
-
-    debug(f"Opening file: {list_xml} nation={nation}")
-    async with aiofiles.open(list_xml, "r", encoding="utf8") as f:
-        tank_list: dict[str, Any] = xmltodict.parse(await f.read())
-        for data in tank_list["root"].keys():
-            try:
-                tank_xml: dict[str, Any] = tank_list["root"][data]
-                debug(f"reading tank: {tank_xml}")
-                tank = WGTank(
-                    tank_id=mk_tank_id(nation, int(tank_xml["id"])), nation=nation
-                )
-                tank.is_premium = issubclass(type(tank_xml["price"]), dict)
-                tank.tier = EnumVehicleTier(int(tank_xml["level"]))
-                tank.type = read_tank_type(tank_xml["tags"])
-                tank.name = tank_xml["userString"]  # Need to be converted later
-                tanks.append(tank)
-                debug("Read tank_id=%d", tank.tank_id)
-            except KeyError as err:
-                error("Failed to read item=%s: %s", data, str(err))
-            except Exception as err:
-                error("Failed to read item=%s: %s", data, str(err))
-    return tanks
+    return extract_tanks_xml(tankopedia, nation)
 
 
 async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
@@ -296,12 +308,32 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
     tank_strs: dict[str, str] = dict()
     filename: Path = blitz_app_dir / BLITZAPP_STRINGS
     user_strs: dict[str, str] = dict()
-    debug(f"Opening file: %s for reading UserStrings", str(filename))
-    with open(filename, "r", encoding="utf8") as strings_file:
-        user_strs = yaml.safe_load(strings_file)
+    is_dvpl: bool = False
+    try:
+        if filename.is_file():
+            pass
+        elif (filename := filename.parent / (filename.name + ".dvpl")).is_file():
+            is_dvpl = True
+            debug("decoding DVPL file: %s", filename.resolve())
+            temp_fn: Path = get_temp_filename("blitz-data.")
+            debug("using temporary file: %s", str(temp_fn))
+            if not await decode_dvpl_file(str(filename), str(temp_fn)):
+                raise IOError(f"could not decode DVPL file: {filename}")
+            filename = temp_fn
+
+        debug(f"Opening file: %s for reading UserStrings", str(filename))
+        with open(filename, "r", encoding="utf8") as strings_file:
+            user_strs = yaml.safe_load(strings_file)
+    except:
+        raise
+    finally:
+        if is_dvpl:
+            debug("deleting temp file: %s", str(filename))
+            os.unlink(filename)
 
     re_tank: Pattern = compile("^#\\w+?_vehicles:")
-    re_skip: Pattern = compile("(^Chassis_|^Turret_|_short$)")
+    # re_skip: Pattern = compile("(^Chassis_|^Turret_|_short$)")
+    re_skip: Pattern = compile("(^Chassis_|^Turret_)")
     for key, value in user_strs.items():
         try:
             if re_tank.match(key):
@@ -317,25 +349,30 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
     return tank_strs
 
 
-def convert_tank_names(tanks: list[WGTank], tank_strs: dict[str, str]) -> list[WGTank]:
-    """Convert tank names for Tankopedia"""
+def convert_tank_names(
+    tanks: list[WGTank], tank_strs: dict[str, str]
+) -> tuple[list[WGTank], list[WGTank]]:
+    """Convert tank names for Tankopedia based on tank user strings in /Data/Strings/en.yaml
+    Returns 2 lists: converted, not_converted"""
     debug("starting")
 
-    res: list[WGTank] = list()
+    converted: list[WGTank] = list()
+    not_converted: list[WGTank] = list()
+
     for tank in tanks:
         try:
             if tank.name in tank_strs:
                 tank.name = tank_strs[tank.name]
+                converted.append(tank)
             elif tank.name is not None:
                 tank.name = tank.name.split(":")[1]
+                not_converted.append(tank)
             else:
                 error(f"no name defined for tank_id={tank.tank_id}: {tank.name}")
         except KeyError as err:
             error(f"could not convert name tank_id={tank.tank_id}: {tank.name}: {err}")
-        finally:
-            res.append(tank)
 
-    return res
+    return converted, not_converted
 
 
 def mk_tank_id(nation: EnumNation, tank_id: int) -> int:
