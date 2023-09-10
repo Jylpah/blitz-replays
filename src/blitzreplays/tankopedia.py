@@ -104,6 +104,7 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
         parser.add_argument(
             "blitz_app_dir",
             type=str,
+            nargs="?",
             default=BLITZAPP_DIR,
             metavar="BLTIZ_APP_DIR",
             help="Read Tankopedia game files",

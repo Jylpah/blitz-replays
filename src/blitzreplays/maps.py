@@ -84,6 +84,7 @@ def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) 
         parser.add_argument(
             "blitz_app_dir",
             type=str,
+            nargs="?",
             default=BLITZAPP_DIR,
             metavar="BLITZ_APP_DIR",
             help="Blitz app dir",
