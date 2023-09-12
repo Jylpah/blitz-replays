@@ -74,7 +74,7 @@ def cli_upload(
     log: str | None = None,
     json: bool = False,
     wi_rate_limit: float = WI_RATE_LIMIT,
-    wi_auth_token: str = WI_AUTH_TOKEN,
+    wi_auth_token: str | None = WI_AUTH_TOKEN,
     wi_workers: int = WI_WORKERS,
     files: list[str] = list(),
 ):
