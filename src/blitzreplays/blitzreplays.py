@@ -79,12 +79,6 @@ MAPS: str = "maps.json"
     help="authentication token for WoTinsepctor.com",
 )
 @click.option(
-    "--wi-workers",
-    type=int,
-    default=None,
-    help="number for WoTinspector.com workers",
-)
-@click.option(
     "--tankopedia",
     type=str,
     default=None,
@@ -104,7 +98,6 @@ def cli(
     log: Path | None = None,
     wi_rate_limit: float | None = None,
     wi_auth_token: str | None = None,
-    wi_workers: int | None = None,
     tankopedia: str | None = None,
     maps: str | None = None,
 ):
@@ -126,7 +119,6 @@ def cli(
 
     set_config(config, "WOTINSPECTOR", "rate_limit", wi_rate_limit, WI_RATE_LIMIT)
     set_config(config, "WOTINSPECTOR", "auth_token", wi_auth_token, WI_AUTH_TOKEN)
-    set_config(config, "WOTINSPECTOR", "workers", wi_workers, WI_WORKERS)
 
     set_config(config, "METADATA", "tankopedia_json", tankopedia, TANKOPEDIA)
     set_config(config, "METADATA", "maps_json", maps, MAPS)
