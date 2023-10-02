@@ -7,6 +7,7 @@ import sys
 from aiostream import stream, async_
 from aiostream.core import Stream
 from functools import wraps
+from alive_progress import alive_bar  # type: ignore
 
 from pyutils import FileQueue, EventCounter
 from blitzutils import (
@@ -93,14 +94,11 @@ async def upload(
         configWI = config["WOTINSPECTOR"]
         wi_rate_limit: float = configWI.getfloat("rate_limit")
         wi_auth_token: str = configWI.get("auth_token")
-        wi_workers: int = configWI.getint("workers")
     except KeyError as err:
         error(f"could not read all the params: {err}")
         sys.exit(1)
 
-    debug(
-        f"wi_rate_limit={wi_rate_limit}, wi_auth_token={wi_auth_token}, wi_workers={wi_workers}"
-    )
+    debug(f"wi_rate_limit={wi_rate_limit}, wi_auth_token={wi_auth_token}")
     WI = WoTinspector(rate_limit=wi_rate_limit, auth_token=wi_auth_token)
 
     if fetch_json is None:
@@ -133,39 +131,50 @@ async def upload(
 
     stats = EventCounter("Upload replays")
     replayQ = FileQueue(filter="*.wotbreplay")
-    scanner: Task = create_task(replayQ.mk_queue(replays))
+    await replayQ.mk_queue(replays)
 
     try:
-        replay_stream: Stream[tuple[str | None, bool, bool]] = stream.map(
-            replayQ,
-            async_(
-                lambda replay_fn: post_save_replay(  # type: ignore
-                    WI=WI,
-                    filename=replay_fn,
-                    uploaded_by=uploaded_by,
-                    tankopedia=tankopedia,
-                    maps=maps,
-                    fetch_json=fetch_json,  # type: ignore
-                    priv=private,  # type: ignore
-                )
-            ),
-            task_limit=wi_workers,
-        )
+        with alive_bar(
+            replayQ.qsize(), title="Posting replays", enrich_print=False
+        ) as bar:
+            async for fn in replayQ:
+                try:
+                    if (fn.parent / (fn.name + ".json")).is_file():
+                        message(f"skipped {fn.name}: replay already uploaded")
+                        stats.log("skipped")
+                        continue
 
-        await scanner
+                    replay_id: str | None = None
+                    replay_json: ReplayJSON | None = None
+                    replay_id, replay_json = await WI.post_replay(
+                        replay=fn,
+                        uploaded_by=uploaded_by,
+                        tankopedia=tankopedia,
+                        maps=maps,
+                        fetch_json=fetch_json,
+                        priv=private,
+                    )
+                    debug(f"replay_id=%s, replay_json=%s", replay_id, replay_json)
 
-        res: list[tuple[str | None, bool, bool]] = await stream.list(replay_stream)
-        stats.log("found", replayQ.count)
-        for replay_id, saved, skipped in res:
-            debug("replay_id=%s", replay_id)
-            if skipped:
-                stats.log("skipped")
-            elif replay_id is None:
-                stats.log("errors")
-            else:
-                stats.log("uploaded")
-                if saved:
-                    stats.log("JSON saved")
+                    if replay_id is None or replay_json is None:
+                        raise ValueError(f"could not upload replay: {fn}")
+                    message(f"posted {fn.name}: {replay_json.data.summary.title}")
+                    stats.log("uploaded")
+                    if fetch_json:
+                        if (
+                            _ := await replay_json.save_json(
+                                fn.parent / (fn.name + ".json")
+                            )
+                        ) > 0:
+                            stats.log("JSON saved")
+                except KeyboardInterrupt:
+                    message("cancelled")
+                    raise
+                except Exception as err:
+                    error(f"could not post replay: {fn}: {type(err)}: {err}")
+                    stats.log("errors")
+                finally:
+                    bar()
 
     except Exception as err:
         error(f"{err}")
@@ -175,53 +184,6 @@ async def upload(
     stats.print()
 
     return 0
-
-
-async def post_save_replay(
-    WI: WoTinspector,
-    filename: Path,
-    uploaded_by: int,
-    tankopedia: WGApiWoTBlitzTankopedia | None,
-    maps: Maps | None,
-    fetch_json: bool = False,
-    priv: bool = False,
-) -> tuple[str | None, bool, bool]:
-    """Helper to post and save a replay
-    Returns: (replay_id, saved, skipped)"""
-    try:
-        if (filename.parent / (filename.name + ".json")).is_file():
-            message(f"skipped {filename.name}: replay already uploaded")
-            return (None, False, True)
-
-        replay_id: str | None = None
-        replay_json: ReplayJSON | None = None
-        replay_id, replay_json = await WI.post_replay(
-            replay=filename,
-            uploaded_by=uploaded_by,
-            tankopedia=tankopedia,
-            maps=maps,
-            fetch_json=fetch_json,
-            priv=priv,
-        )
-        debug(f"replay_id={replay_id}, replay_json={replay_json}")
-        if replay_id is None or replay_json is None:
-            raise ValueError(f"could not upload replay: {filename}")
-        message(f"posted {filename.name}: {replay_json.data.summary.title}")
-        if fetch_json:
-            if (
-                _ := await replay_json.save_json(
-                    filename.parent / (filename.name + ".json")
-                )
-            ) > 0:
-                return (replay_id, True, False)
-            else:
-                return (replay_id, False, False)
-        else:
-            return (replay_id, False, False)
-
-    except Exception as err:
-        error(f"{filename}: {type(err)}: {err}")
-    return (None, False, False)
 
 
 ########################################################
