@@ -9,9 +9,11 @@ from asyncio import set_event_loop_policy, run, create_task, get_event_loop_poli
 import sys, argparse, logging
 import logging
 
+from pyutils import MultilevelFormatter
+from blitzutils import get_config_file
+
 sys.path.insert(0, dirname(dirname(realpath(__file__))))
 
-from pyutils import MultilevelFormatter
 from blitzreplays import tankopedia
 from blitzreplays import maps
 
@@ -36,23 +38,9 @@ async def main() -> None:
     CONFIG = _PKG_NAME + ".ini"
     LOG = _PKG_NAME + ".log"
     config: Optional[ConfigParser] = None
-    CONFIG_FILE: Optional[str] = None
-
-    CONFIG = "blitzstats.ini"
-    CONFIG_FILES: list[str] = [
-        "./" + CONFIG,
-        dirname(realpath(__file__)) + "/" + CONFIG,
-        "~/." + CONFIG,
-        "~/.config/" + CONFIG,
-        f"~/.config/{_PKG_NAME}/config",
-        "~/.config/blitzstats.ini",
-        "~/.config/blitzstats/config",
-    ]
-    for fn in [expanduser(f) for f in CONFIG_FILES]:
-        if isfile(fn):
-            CONFIG_FILE = fn
-            verbose(f"config file: {CONFIG_FILE}")
-            break
+    CONFIG_FILE: str | None = None
+    if (c := get_config_file()) is not None:
+        CONFIG_FILE = str(c.resolve())
 
     parser = argparse.ArgumentParser(
         description="Read/update Blitz metadata", add_help=False
