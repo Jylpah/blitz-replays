@@ -232,12 +232,15 @@ async def cmd_app(args: Namespace) -> WGApiWoTBlitzTankopedia | None:
             tankopedia.add(tank)
 
         async with WGApi(default_region=Region(args.wg_region), rate_limit=0) as wg:
+            _re_tank: Pattern = compile("^#\\w+?_vehicles:")
             for tank in tanks_nok:
                 if (
                     tank.code is not None
                     and (tank_str := await wg.get_tank_str(tank.code)) is not None
                 ):
                     tank.name = tank_str.user_string
+                    if _re_tank.match(tank.name):
+                        tank.name = tank.code
                 else:
                     error(f"could not fetch tank name for tank_id={tank.tank_id}")
                 tankopedia.add(tank)
@@ -367,11 +370,16 @@ def convert_tank_names(
                 converted.append(tank)
             elif tank.code is not None:
                 tank.code = tank.code.split(":")[1]
+                tank.name = tank.code
                 not_converted.append(tank)
             else:
                 error(f"no name defined for tank_id={tank.tank_id}: {tank.name}")
         except KeyError as err:
             error(f"could not convert name tank_id={tank.tank_id}: {tank.name}: {err}")
+        except IndexError as err:
+            error(
+                f"extracting tank code from user string failed: tank_id={tank.tank_id}, {tank.code}: {err}"
+            )
 
     return converted, not_converted
 
