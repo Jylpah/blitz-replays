@@ -184,7 +184,7 @@ async def cmd_app(args: Namespace) -> Maps | None:
             debug("decoding DVPL file: %s", filename.resolve())
             temp_fn: Path = get_temp_filename("blitz-data.")
             debug("using temporary file: %s", str(temp_fn))
-            if not await decode_dvpl_file(str(filename), str(temp_fn)):
+            if not await decode_dvpl_file(filename, temp_fn):
                 raise IOError(f"could not decode DVPL file: {filename}")
             filename = temp_fn
 

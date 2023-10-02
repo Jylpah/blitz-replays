@@ -18,13 +18,13 @@ debug = logger.debug
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve() / "src"))
 
 from blitzutils import (
-    WGTank,
+    Tank,
     EnumNation,
     EnumVehicleTier,
     EnumVehicleTypeInt,
     EnumVehicleTypeStr,
 )
-from blitzutils import WGApiTankopedia
+from blitzutils import WGApiWoTBlitzTankopedia
 
 
 ########################################################
@@ -122,7 +122,7 @@ async def test_1_blitz_data_tankopedia(
     assert completed_process.returncode == 0, f"blitzdata tankopedia {cmd} failed"
 
     assert (
-        tankopedia := await WGApiTankopedia.open_json(OUTFILE)
+        tankopedia := await WGApiWoTBlitzTankopedia.open_json(OUTFILE)
     ) is not None, f"could not open results: tankopedia {cmd}"
 
     assert len(tankopedia) == added, f"incorrect number of tanks: tankopedia {cmd}"
@@ -150,7 +150,7 @@ async def test_2_blitz_data_tankopedia_update(
     assert completed_process.returncode == 0, f"blitzdata tankopedia {cmd} failed"
 
     assert (
-        tankopedia := await WGApiTankopedia.open_json(OUTFILE)
+        tankopedia := await WGApiWoTBlitzTankopedia.open_json(OUTFILE)
     ) is not None, f"could not open results: tankopedia {cmd}"
 
     assert len(tankopedia) == added, f"incorrect number of tanks: tankopedia {cmd}"
@@ -166,7 +166,7 @@ async def test_3_blitz_data_tankopedia_wg(tmp_path: Path) -> None:
     assert completed_process.returncode == 0, f"blitzdata tankopedia wg failed"
 
     assert (
-        tankopedia := await WGApiTankopedia.open_json(OUTFILE)
+        tankopedia := await WGApiWoTBlitzTankopedia.open_json(OUTFILE)
     ) is not None, f"could not open results: tankopedia wg"
 
     assert len(tankopedia) > 500, f"incorrect number of tanks: tankopedia wg"
