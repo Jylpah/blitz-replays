@@ -1,26 +1,21 @@
+#!/usr/bin/env python3
+
 import click
 from asyncio import run
 import logging
 from pathlib import Path
 from configparser import ConfigParser
 import configparser
-from typing import Optional, Callable
-import sys
+from sys import path, exit
+from os.path import dirname, realpath
 
-from pyutils import MultilevelFormatter, FileQueue
-from blitzutils import WoTinspector, get_config_file
+from pyutils import MultilevelFormatter
+from pyutils.utils import set_config
+from blitzutils import get_config_file
 
-from . import replays_upload
+path.insert(0, dirname(dirname(realpath(__file__))))
 
-# sys.path.insert(0, dirname(dirname(realpath(__file__))))
-
-
-def async_click(callable_: Callable):
-    def wrapper(*args, **kwargs):
-        run(callable_(*args, **kwargs))
-
-    return wrapper
-
+from blitzreplays import replays_upload
 
 logger = logging.getLogger()
 error = logger.error
@@ -34,12 +29,15 @@ debug = logger.debug
 #
 ##############################################
 
+
 _PKG_NAME = "blitz-replays"
 LOG = _PKG_NAME + ".log"
 CONFIG_FILE: Path | None = get_config_file()
 WI_RATE_LIMIT: float = 20 / 3600
 WI_AUTH_TOKEN: str | None = None
 WI_WORKERS: int = 3
+TANKOPEDIA: str = "tanks.json"
+MAPS: str = "maps.json"
 
 ##############################################
 #
@@ -49,75 +47,95 @@ WI_WORKERS: int = 3
 
 
 @click.group(help="CLI tool upload WoT Blitz Replays to WoTinspector.com")
-# @click.option("--normal", "LOG_LEVEL", flag_value=logging.WARNING, default=True, help="default verbosity")
+@click.option(
+    "--normal",
+    "LOG_LEVEL",
+    flag_value=logging.WARNING,
+    default=True,
+    help="default verbosity",
+)
 @click.option("--verbose", "LOG_LEVEL", flag_value=logging.INFO, help="verbose logging")
 @click.option("--debug", "LOG_LEVEL", flag_value=logging.DEBUG, help="debug logging")
 @click.option(
     "--config",
     "config_file",
-    type=str,
+    type=click.Path(),
     default=CONFIG_FILE,
     help=f"read config from file (default: {CONFIG_FILE})",
 )
-@click.option("--log", type=click.Path(), default=None, help="log to FILE")
+@click.option(
+    "--log", type=click.Path(path_type=Path), default=None, help="log to FILE"
+)
 @click.option(
     "--wi-rate-limit",
     type=float,
-    default=WI_RATE_LIMIT,
+    default=None,
     help="rate-limit for WoTinspector.com",
 )
 @click.option(
     "--wi-auth_token",
     type=str,
-    default=WI_AUTH_TOKEN,
+    default=None,
     help="authentication token for WoTinsepctor.com",
 )
 @click.option(
     "--wi-workers",
     type=int,
-    default=WI_WORKERS,
+    default=None,
     help="number for WoTinspector.com workers",
+)
+@click.option(
+    "--tankopedia",
+    type=str,
+    default=None,
+    help="tankopedia JSON file",
+)
+@click.option(
+    "--maps",
+    type=str,
+    default=None,
+    help="maps JSON file",
 )
 @click.pass_context
 def cli(
     ctx: click.Context,
     LOG_LEVEL: int = logging.WARNING,
-    config_file: str | None = None,
+    config_file: Path | None = CONFIG_FILE,
     log: Path | None = None,
-    wi_rate_limit: float = WI_RATE_LIMIT,
-    wi_auth_token: str | None = WI_AUTH_TOKEN,
-    wi_workers: int = WI_WORKERS,
+    wi_rate_limit: float | None = None,
+    wi_auth_token: str | None = None,
+    wi_workers: int | None = None,
+    tankopedia: str | None = None,
+    maps: str | None = None,
 ):
     """CLI app to upload WoT Blitz replays"""
     global logger, error, debug, verbose, message
 
-    logger.setLevel(LOG_LEVEL)
     MultilevelFormatter.setDefaults(logger, log_file=log)
+    logger.setLevel(LOG_LEVEL)
     ctx.ensure_object(dict)
 
-    config: ConfigParser | None = None
+    config: ConfigParser = ConfigParser(allow_no_value=True)
+
     if config_file is not None:
         try:
-            config = ConfigParser()
             config.read(config_file)
-            if config.has_section("WOTINSPECTOR"):
-                configWI = config["WOTINSPECTOR"]
-                wi_rate_limit = configWI.getfloat("rate_limit", wi_rate_limit)
-                wi_auth_token = configWI.get("auth_token", wi_auth_token)
-                wi_workers = configWI.getint("workers", wi_workers)
         except configparser.Error as err:
-            error(f"could not read config file {config_file}")
-            error(f"{type(err)}: {err}")
-    else:
-        verbose("no config file defined")
+            error(f"could not read config file {config_file}: {err}")
+            exit(1)
 
-    ctx.obj["WI"] = WoTinspector(rate_limit=wi_rate_limit, auth_token=wi_auth_token)
-    ctx.obj["wi_workers"] = wi_workers
+    set_config(config, "WOTINSPECTOR", "rate_limit", wi_rate_limit, WI_RATE_LIMIT)
+    set_config(config, "WOTINSPECTOR", "auth_token", wi_auth_token, WI_AUTH_TOKEN)
+    set_config(config, "WOTINSPECTOR", "workers", wi_workers, WI_WORKERS)
+
+    set_config(config, "METADATA", "tankopedia_json", tankopedia, TANKOPEDIA)
+    set_config(config, "METADATA", "maps_json", maps, MAPS)
+
     ctx.obj["config"] = config
 
 
 # Add sub commands
-cli.add_command(replays_upload.cli)  # type: ignore
+cli.add_command(replays_upload.upload)  # type: ignore
 
 ########################################################
 #

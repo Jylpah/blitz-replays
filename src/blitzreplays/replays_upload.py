@@ -1,21 +1,29 @@
 import click
-from asyncio import run
+from asyncio import run, Task, create_task, wait
 import logging
-from os.path import isfile, dirname, realpath, expanduser
+from pathlib import Path
 from configparser import ConfigParser
-from typing import Optional, Callable
 import sys
+from aiostream import stream, async_
+from aiostream.core import Stream
+from functools import wraps
 
-from pyutils import MultilevelFormatter, FileQueue
-from pyutils.utils import read_config
-from blitzutils import WoTinspector
+from pyutils import FileQueue, EventCounter
+from blitzutils import (
+    WoTinspector,
+    WGApiWoTBlitzTankopedia,
+    ReplayJSON,
+    Maps,
+    get_config_file,
+)
 
-sys.path.insert(0, dirname(dirname(realpath(__file__))))
 
+def coro(f):
+    """decorator for async coroutines"""
 
-def async_click(callable_: Callable):
+    @wraps(f)
     def wrapper(*args, **kwargs):
-        run(callable_(*args, **kwargs))
+        return run(f(*args, **kwargs))
 
     return wrapper
 
@@ -33,22 +41,12 @@ debug = logger.debug
 ##############################################
 
 _PKG_NAME = "blitz-replays"
-CONFIG = _PKG_NAME + ".ini"
 LOG = _PKG_NAME + ".log"
-CONFIG_FILES: list[str] = [
-    "./" + CONFIG,
-    dirname(realpath(__file__)) + "/" + CONFIG,
-    "~/." + CONFIG,
-    "~/.config/" + CONFIG,
-    "~/.config/" + _PKG_NAME + "/config",
-    "~/.config/blitzstats.ini",
-    "~/.config/blitzstats/config",
-]
+CONFIG_FILE: Path | None = get_config_file()
 
 WI_RATE_LIMIT: float = 20 / 3600
 WI_AUTH_TOKEN: str | None = None
 WI_WORKERS: int = 3
-
 
 ##############################################
 #
@@ -58,63 +56,172 @@ WI_WORKERS: int = 3
 
 
 @click.command()
-@click.option("--normal", "LOG_LEVEL", flag_value=logging.WARNING, default=True)
-@click.option("--verbose", "LOG_LEVEL", flag_value=logging.INFO)
-@click.option("--debug", "LOG_LEVEL", flag_value=logging.DEBUG)
-@click.option("--config", "config_file", type=str, default=None)
-@click.option("--log", type=str, default=None)
-@click.option("--json", default=False)
-@click.option("--wi-rate-limit", type=float, default=WI_RATE_LIMIT)
-@click.option("--wi-auth_token", type=str, default=WI_AUTH_TOKEN)
-@click.option("--wi-workers", type=int, default=WI_WORKERS)
-@click.argument("files", nargs=-1)
-def cli_upload(
-    LOG_LEVEL: int = logging.WARNING,
-    config_file: str | None = None,
-    log: str | None = None,
-    json: bool = False,
-    wi_rate_limit: float = WI_RATE_LIMIT,
-    wi_auth_token: str | None = WI_AUTH_TOKEN,
-    wi_workers: int = WI_WORKERS,
-    files: list[str] = list(),
-):
-    global logger, error, debug, verbose, message
-
-    logger.setLevel(LOG_LEVEL)
-    MultilevelFormatter.setDefaults(logger, log_file=log)
-
-    config: ConfigParser | None
-    if (config := read_config(config_file, CONFIG_FILES)) is None:
-        debug("could not find a config file")
-    elif config.has_section("WOTINSPECTOR"):
+@click.option(
+    "--json",
+    "fetch_json",
+    flag_value=True,
+    default=None,
+    help="fetch replay JSON files for analysis (default=False)",
+)
+@click.option(
+    "--uploaded_by",
+    type=int,
+    default=0,
+    help="WG account_id of the uploader",
+)
+@click.option(
+    "--private",
+    "private",
+    flag_value=True,
+    default=None,
+    help="upload replays as private without listing those publicly (default=False)",
+)
+@click.argument("replays", type=click.Path(path_type=Path), nargs=-1)
+@click.pass_context
+@coro
+async def upload(
+    ctx: click.Context,
+    fetch_json: bool | None = None,
+    uploaded_by: int = 0,
+    private: bool | None = None,
+    replays: list[Path] = list(),
+) -> int:
+    tankopedia_fn: Path | None = None
+    maps_fn: Path | None = None
+    try:
+        config: ConfigParser = ctx.obj["config"]
         configWI = config["WOTINSPECTOR"]
-        wi_rate_limit = configWI.getfloat("rate_limit", wi_rate_limit)
-        wi_auth_token = configWI.get("auth_token", wi_auth_token)
-        wi_workers = configWI.getint("workers", wi_workers)
-
-    if not run(
-        upload(
-            files=files,
-            wi_rate_limit=wi_rate_limit,
-            wi_auth_token=wi_auth_token,
-            wi_workers=wi_workers,
-        )
-    ):
+        wi_rate_limit: float = configWI.getfloat("rate_limit")
+        wi_auth_token: str = configWI.get("auth_token")
+        wi_workers: int = configWI.getint("workers")
+    except KeyError as err:
+        error(f"could not read all the params: {err}")
         sys.exit(1)
 
+    debug(
+        f"wi_rate_limit={wi_rate_limit}, wi_auth_token={wi_auth_token}, wi_workers={wi_workers}"
+    )
+    WI = WoTinspector(rate_limit=wi_rate_limit, auth_token=wi_auth_token)
 
-async def upload(
-    files: list[str],
-    wi_rate_limit: float = WI_RATE_LIMIT,
-    wi_auth_token: str | None = None,
-    wi_workers: int = WI_WORKERS,
-) -> bool:
-    wi = WoTinspector(rate_limit=wi_rate_limit, auth_token=wi_auth_token)
+    if fetch_json is None:
+        fetch_json = configWI.getboolean("fetch_json", False)
+    debug(f"fetch_json={fetch_json}")
+    if private is None:
+        private = configWI.getboolean("upload_private", False)
+    debug(f"private={private}")
+    if uploaded_by == 0:
+        uploaded_by = config.getint(section="WG", option="wg_id", fallback=0)
+    debug(f"uploaded_by={uploaded_by}")
+
+    try:
+        tankopedia_fn = Path(config.get(section="METADATA", option="tankopedia_json"))
+        maps_fn = Path(config.get(section="METADATA", option="maps_json"))
+    except (TypeError, KeyError) as err:
+        debug(f"could not open maps or tankopedia: {err}")
+
+    tankopedia: WGApiWoTBlitzTankopedia | None = None
+    maps: Maps | None = None
+
+    if (
+        tankopedia_fn is None
+        or (tankopedia := await WGApiWoTBlitzTankopedia.open_json(tankopedia_fn))
+        is None
+    ):
+        verbose(f"could not open tankopedia: {tankopedia_fn}")
+    if maps_fn is None or (maps := await Maps.open_json(maps_fn)) is None:
+        verbose(f"could not open maps: {maps_fn}")
+
+    stats = EventCounter("Upload replays")
     replayQ = FileQueue(filter="*.wotbreplay")
+    scanner: Task = create_task(replayQ.mk_queue(replays))
 
-    await replayQ.mk_queue(files)
-    # FIX WoTinsepector.post_replay() first
-    return False
+    try:
+        replay_stream: Stream[tuple[str | None, bool, bool]] = stream.map(
+            replayQ,
+            async_(
+                lambda replay_fn: post_save_replay(  # type: ignore
+                    WI=WI,
+                    filename=replay_fn,
+                    uploaded_by=uploaded_by,
+                    tankopedia=tankopedia,
+                    maps=maps,
+                    fetch_json=fetch_json,  # type: ignore
+                    priv=private,  # type: ignore
+                )
+            ),
+            task_limit=wi_workers,
+        )
+
+        await scanner
+
+        res: list[tuple[str | None, bool, bool]] = await stream.list(replay_stream)
+        stats.log("found", replayQ.count)
+        for replay_id, saved, skipped in res:
+            debug("replay_id=%s", replay_id)
+            if skipped:
+                stats.log("skipped")
+            elif replay_id is None:
+                stats.log("errors")
+            else:
+                stats.log("uploaded")
+                if saved:
+                    stats.log("JSON saved")
+
+    except Exception as err:
+        error(f"{err}")
+    finally:
+        await WI.close()
+
+    stats.print()
+
+    return 0
+
+
+async def post_save_replay(
+    WI: WoTinspector,
+    filename: Path,
+    uploaded_by: int,
+    tankopedia: WGApiWoTBlitzTankopedia | None,
+    maps: Maps | None,
+    fetch_json: bool = False,
+    priv: bool = False,
+) -> tuple[str | None, bool, bool]:
+    """Helper to post and save a replay
+    Returns: (replay_id, saved, skipped)"""
+    try:
+        if (filename.parent / (filename.name + ".json")).is_file():
+            message(f"skipped {filename.name}: replay already uploaded")
+            return (None, False, True)
+
+        replay_id: str | None = None
+        replay_json: ReplayJSON | None = None
+        replay_id, replay_json = await WI.post_replay(
+            replay=filename,
+            uploaded_by=uploaded_by,
+            tankopedia=tankopedia,
+            maps=maps,
+            fetch_json=fetch_json,
+            priv=priv,
+        )
+        debug(f"replay_id={replay_id}, replay_json={replay_json}")
+        if replay_id is None or replay_json is None:
+            raise ValueError(f"could not upload replay: {filename}")
+        message(f"posted {filename.name}: {replay_json.data.summary.title}")
+        if fetch_json:
+            if (
+                _ := await replay_json.save_json(
+                    filename.parent / (filename.name + ".json")
+                )
+            ) > 0:
+                return (replay_id, True, False)
+            else:
+                return (replay_id, False, False)
+        else:
+            return (replay_id, False, False)
+
+    except Exception as err:
+        error(f"{filename}: {type(err)}: {err}")
+    return (None, False, False)
 
 
 ########################################################
