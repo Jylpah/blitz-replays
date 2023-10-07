@@ -1,7 +1,7 @@
 import configparser
 from datetime import datetime
 from typing import Optional, Literal, Any, cast
-from asyncio import Task, TaskGroup, create_task, gather
+from asyncio import Task, create_task, gather
 from os.path import isfile
 from os import unlink
 from pathlib import Path
@@ -39,6 +39,7 @@ debug = logger.debug
 
 TANKOPEDIA: str = "tanks.json"
 WG_APP_ID: str = "d6d03acb6bee0e9f361b6e02e1780b56"
+WG_REGION: str = "eu"
 
 BLITZAPP_STRINGS: str = "Data/Strings/en.yaml"
 BLITZAPP_VEHICLES_DIR: str = "Data/XML/item_defs/vehicles/"
@@ -93,13 +94,13 @@ def tankopedia(
 ########################################################
 
 
-@tankopedia.command(help="extract from Blitz game files")  # type:ignore
+@tankopedia.command(help="extract Tankopedia from Blitz game files")  # type:ignore
 @click.option("--wg-app-id", type=str, default=None, help="WG app ID")
 @click.option(
     "--wg-region",
     type=click.Choice([r.name for r in Region.API_regions()], case_sensitive=False),
     default=None,
-    help="Default WG API region",
+    help=f"WG API region (default: {WG_REGION})",
 )
 @click.argument(
     "blitz_app_dir",
@@ -122,7 +123,7 @@ async def app(
         config: configparser.ConfigParser = ctx.obj["config"]
         wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
         region: Region = Region(
-            set_config(config, "eu", "WG", "default_region", wg_region)
+            set_config(config, WG_REGION, "WG", "default_region", wg_region)
         )
         outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
 
@@ -194,7 +195,7 @@ async def app(
 ########################################################
 
 
-@tankopedia.command(help="get tankopedia from WG API")  # type:ignore
+@tankopedia.command(help="get Tankopedia from WG API")  # type:ignore
 @click.option("--wg-app-id", type=str, default=None, help="WG app ID")
 @click.option(
     "--wg-region",
@@ -214,7 +215,7 @@ async def wg_api(
         config: configparser.ConfigParser = ctx.obj["config"]
         wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
         region: Region = Region(
-            set_config(config, "eu", "WG", "default_region", wg_region)
+            set_config(config, WG_REGION, "WG", "default_region", wg_region)
         )
         outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
 
@@ -230,7 +231,7 @@ async def wg_api(
         if (tankopedia := await wg.get_tankopedia(region=region)) is not None:
             await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
         else:
-            error(f"could not read tankopedia from WG API ({wg_region} server)")
+            error(f"could not read Tankopedia from WG API ({wg_region} server)")
 
 
 ########################################################
@@ -240,7 +241,11 @@ async def wg_api(
 ########################################################
 
 
-@tankopedia.command(help="get tankopedia from a JSON file")  # type:ignore
+@tankopedia.command(  # type:ignore
+    help=""""read Tankopedia from a JSON file 
+    
+            INFILE is a JSON file to read maps from"""
+)
 @click.argument(
     "infile",
     type=click.Path(path_type=Path),
@@ -264,13 +269,13 @@ async def file(ctx: click.Context, infile: Path):
     if (tankopedia := await WGApiWoTBlitzTankopedia.open_json(infile)) is not None:
         await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
     else:
-        error(f"could not read tankopedia from {infile}")
+        error(f"could not read Tankopedia from {infile}")
 
 
 async def update_tankopedia(
     outfile: Path, tankopedia: WGApiWoTBlitzTankopedia, force: bool = False
 ) -> bool:
-    """Update tankopedia JSON file with new tankopedia"""
+    """Update Tankopedia JSON file with new tankopedia"""
     if not force and outfile.is_file():
         if (tankopedia_old := await WGApiWoTBlitzTankopedia.open_json(outfile)) is None:
             error(f"could not parse old tankopedia: {outfile}")
