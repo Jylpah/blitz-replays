@@ -1,6 +1,6 @@
 [project]
 name = "blitz-replays"
-version = "0.3.2"
+version = "0.3.3"
 authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"
@@ -20,7 +20,7 @@ dependencies = [
     "aiohttp>=3.8.4",
     # "aiosqlite>=0.19.0",
     "alive-progress>=3.1.1",
-    "click=>8.1, == 8.*",
+    "click>=8.1",
     "xmltodict>=0.13.0",
     "aiostream>=0.5.0",
     # "asyncstdlib>=3.10.6", 
