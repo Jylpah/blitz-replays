@@ -185,7 +185,7 @@ async def app(
 
     except Exception as err:
         error(err)
-    sys.exit(2)
+        sys.exit(2)
 
 
 ########################################################
@@ -205,7 +205,7 @@ async def app(
 )
 @click.pass_context
 @coro
-async def wg_api(
+async def wg(
     ctx: click.Context,
     wg_app_id: str | None = None,
     wg_region: str | None = None,
