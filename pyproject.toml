@@ -78,6 +78,7 @@ packages = ["src/blitzreplays"]
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 exclude = ['^blitz.*\.py']
+mypy_path = "src/"
 
 
 [tool.pydantic-mypy]
