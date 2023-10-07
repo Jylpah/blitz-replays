@@ -172,11 +172,7 @@ async def app(
 ########################################################
 
 
-@maps.command(  # type:ignore
-    help="""read maps data from a JSON file
-              
-            INFILE is a JSON file to read maps from"""
-)
+@maps.command(help="read maps data from a JSON file")  # type:ignore
 @click.argument(
     "infile",
     type=click.Path(path_type=Path),
