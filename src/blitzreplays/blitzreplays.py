@@ -15,7 +15,7 @@ from blitzutils import get_config_file
 
 path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from .replays import upload
+from blitzreplays.replays import upload
 
 logger = logging.getLogger()
 error = logger.error

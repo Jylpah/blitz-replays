@@ -16,7 +16,7 @@ from blitzutils import get_config_file
 
 path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from .metadata import tankopedia, maps
+from blitzreplays.metadata import tankopedia, maps
 
 # logging.getLogger("asyncio").setLevel(logging.DEBUG)
 logger = logging.getLogger()
