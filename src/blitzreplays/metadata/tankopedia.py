@@ -44,110 +44,15 @@ BLITZAPP_STRINGS: str = "Data/Strings/en.yaml"
 BLITZAPP_VEHICLES_DIR: str = "Data/XML/item_defs/vehicles/"
 BLITZAPP_VEHICLE_FILE: str = "list.xml"
 
-########################################################
-#
-# add_args_ functions
-#
-########################################################
-
-
-# def add_args(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
-#     try:
-#         debug("starting")
-#         TANKS_FILE: str = "tanks.json"
-
-#         tankopedia_parsers = parser.add_subparsers(
-#             dest="tankopedia_cmd",
-#             title="tankopedia commands",
-#             description="valid commands",
-#             metavar="app | file | wg",
-#         )
-#         tankopedia_parsers.required = True
-
-#         app_parser = tankopedia_parsers.add_parser("app", help="tankopedia app help")
-#         if not add_args_app(app_parser, config=config):
-#             raise Exception("Failed to define argument parser for: tankopedia app")
-
-#         file_parser = tankopedia_parsers.add_parser("file", help="tankopedia file help")
-#         if not add_args_file(file_parser, config=config):
-#             raise Exception("Failed to define argument parser for: tankopedia file")
-
-#         wg_parser = tankopedia_parsers.add_parser("wg", help="tankopedia wg help")
-#         if not add_args_wgapi(wg_parser, config=config):
-#             raise Exception("Failed to define argument parser for: tankopedia wg")
-
-#         if config is not None and "METADATA" in config.sections():
-#             configOptions = config["METADATA"]
-#             TANKS_FILE = configOptions.get("tankopedia_json", TANKS_FILE)
-
-#         parser.add_argument(
-#             "--outfile",
-#             type=str,
-#             default=TANKS_FILE,
-#             nargs="?",
-#             metavar="TANKOPEDIA",
-#             help=f"Write Tankopedia to file ({TANKS_FILE})",
-#         )
-#         parser.add_argument(
-#             "-f",
-#             "--force",
-#             action="store_true",
-#             help="Overwrite Tankopedia instead of updating it",
-#         )
-
-#         debug("Finished")
-#         return add_args_wg(parser=parser, config=config)
-#     except Exception as err:
-#         error(f"{err}")
-#     return False
-
-
-# def add_args_app(parser: ArgumentParser, config: Optional[ConfigParser] = None) -> bool:
-#     debug("starting")
-#     BLITZAPP_DIR: str = "./BlitzApp"
-#     try:
-#         if config is not None and "METADATA" in config.sections():
-#             configOptions = config["METADATA"]
-#             BLITZAPP_DIR = configOptions.get("blitz_app_dir", BLITZAPP_DIR)
-#         parser.add_argument(
-#             "blitz_app_dir",
-#             type=str,
-#             nargs="?",
-#             default=BLITZAPP_DIR,
-#             metavar="BLTIZ_APP_DIR",
-#             help="Read Tankopedia game files",
-#         )
-#     except Exception as err:
-#         error(f"could not add arguments: {err}")
-#         return False
-#     return True
-
-
-# def add_args_file(
-#     parser: ArgumentParser, config: Optional[ConfigParser] = None
-# ) -> bool:
-#     debug("starting")
-#     parser.add_argument(
-#         "infile", type=str, metavar="FILE", help="Read Tankopedia from file"
-#     )
-#     return True
-
-
-# def add_args_wgapi(
-#     parser: ArgumentParser, config: Optional[ConfigParser] = None
-# ) -> bool:
-#     """Dummy since the WGApi() params are read in the parent"""
-#     return True
-
 
 ###########################################
 #
-# cmd_ functions
+# tankopedia
 #
 ###########################################
 
 
-@click.group()
+@click.group(help="extract tankopedia as JSON file for other tools")
 @click.option(
     "-f",
     "--force",
@@ -188,33 +93,37 @@ def tankopedia(
 ########################################################
 
 
-@tankopedia.command()  # type:ignore
-@click.option("--wg-app-id", type=str, default="", help="WG app ID")
+@tankopedia.command(help="extract from Blitz game files")  # type:ignore
+@click.option("--wg-app-id", type=str, default=None, help="WG app ID")
 @click.option(
     "--wg-region",
     type=click.Choice([r.name for r in Region.API_regions()], case_sensitive=False),
-    default="",
+    default=None,
     help="Default WG API region",
 )
 @click.argument(
     "blitz_app_dir",
     type=click.Path(path_type=Path, exists=True, file_okay=False),
+    required=False,
+    default=None,
     nargs=1,
 )
 @click.pass_context
 @coro
 async def app(
     ctx: click.Context,
-    wg_app_id: str = "",
-    wg_region: str = "",
+    wg_app_id: str | None = None,
+    wg_region: str | None = None,
     blitz_app_dir: Path | None = None,
 ):
     """Read Tankopedia from game files (Steam Client)"""
     debug("starting")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
-        wg_app_id = set_config(config, WG_APP_ID, "WG", "default_region", wg_app_id)
-        wg_region = set_config(config, "eu", "WG", "default_region", wg_region)
+        wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
+        region: Region = Region(
+            set_config(config, "eu", "WG", "default_region", wg_region)
+        )
         outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
 
         force: bool = ctx.obj["force"]
@@ -258,7 +167,7 @@ async def app(
         for tank in tanks_ok:
             tankopedia.add(tank)
 
-        async with WGApi(default_region=Region(wg_region), rate_limit=0) as wg:
+        async with WGApi(default_region=region, rate_limit=0) as wg:
             _re_tank: Pattern = compile("^#\\w+?_vehicles:")
             for tank in tanks_nok:
                 if (
@@ -278,26 +187,35 @@ async def app(
     sys.exit(2)
 
 
-@tankopedia.command()  # type:ignore
-@click.option("--wg-app-id", type=str, default="", help="WG app ID")
+########################################################
+#
+# tankopedia wg-api
+#
+########################################################
+
+
+@tankopedia.command(help="get tankopedia from WG API")  # type:ignore
+@click.option("--wg-app-id", type=str, default=None, help="WG app ID")
 @click.option(
     "--wg-region",
     type=click.Choice([r.name for r in Region.API_regions()], case_sensitive=False),
-    default="",
+    default=None,
     help="Default WG API region",
 )
 @click.pass_context
 @coro
 async def wg_api(
     ctx: click.Context,
-    wg_app_id: str = "",
-    wg_region: str = "",
+    wg_app_id: str | None = None,
+    wg_region: str | None = None,
 ):
-    debug("starting")
+    debug(f"starting: wg_app_id={wg_app_id} wg_region={wg_region}")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
-        wg_app_id = set_config(config, WG_APP_ID, "WG", "default_region", wg_app_id)
-        wg_region = set_config(config, "eu", "WG", "default_region", wg_region)
+        wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
+        region: Region = Region(
+            set_config(config, "eu", "WG", "default_region", wg_region)
+        )
         outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
 
         force: bool = ctx.obj["force"]
@@ -309,15 +227,20 @@ async def wg_api(
         error(f"{type(err)}: {err}")
         sys.exit(1)
     async with WGApi(app_id=wg_app_id) as wg:
-        if (
-            tankopedia := await wg.get_tankopedia(region=Region(wg_region))
-        ) is not None:
+        if (tankopedia := await wg.get_tankopedia(region=region)) is not None:
             await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
         else:
             error(f"could not read tankopedia from WG API ({wg_region} server)")
 
 
-@tankopedia.command()  # type:ignore
+########################################################
+#
+# tankopedia file
+#
+########################################################
+
+
+@tankopedia.command(help="get tankopedia from a JSON file")  # type:ignore
 @click.argument(
     "infile",
     type=click.Path(path_type=Path),
@@ -374,122 +297,6 @@ async def update_tankopedia(
     else:
         error(f"writing Tankopedia failed: {outfile}")
         return False
-
-
-#     if (outfile := config.get("METADATA", "tankopedia_json")) is None:
-#         raise ValueError("configuration error: no --outfile defined")
-
-#     tankopedia_new: WGApiWoTBlitzTankopedia | None
-#     tankopedia: WGApiWoTBlitzTankopedia | None
-#     if args.tankopedia_cmd == "app":
-#         if (tankopedia_new := await cmd_app(args)) is None:
-#             raise ValueError(
-#                 f"could not read tankopedia from game files: {args.blitz_app_dir}"
-#             )
-#     elif args.tankopedia_cmd == "file":
-#         if (tankopedia_new := await cmd_file(args)) is None:
-#             raise ValueError(f"could not read tankopedia from file: {args.infile}")
-
-#     elif args.tankopedia_cmd == "wg":
-#         if (tankopedia_new := await cmd_wg(args)) is None:
-#             raise ValueError(
-#                 f"could not read tankopedia from WG API: {args.server}"
-#             )
-#     else:
-#         raise NotImplementedError(f"unknown command: {args.tankopedia_cmd}")
-
-#     if not args.force and isfile(args.outfile):
-#         if (
-#             tankopedia := await WGApiWoTBlitzTankopedia.open_json(args.outfile)
-#         ) is None:
-#             error(f"could not parse old tankopedia: {args.outfile}")
-#             return False
-#     else:
-#         tankopedia = WGApiWoTBlitzTankopedia()
-
-#     added: set[int]
-#     updated: set[int]
-#     (added, updated) = tankopedia.update(tankopedia_new)
-
-#     if await tankopedia.save_json(args.outfile) > 0:
-#         if logger.level < logging.WARNING:
-#             for tank_id in added:
-#                 verbose(f"added:   tank_id={tank_id:<5} {tankopedia[tank_id].name}")
-
-#         if logger.level < logging.WARNING:
-#             for tank_id in updated:
-#                 verbose(f"updated: tank_id={tank_id:<5} {tankopedia[tank_id].name}")
-
-#         message(
-#             f"added {len(added)} and updated {len(updated)} tanks to Tankopedia"
-#         )
-#         message(f"saved {len(tankopedia)} tanks to Tankopedia ({args.outfile})")
-#     else:
-#         error(f"writing Tankopedia failed: {args.outfile}")
-
-#     return True
-# except Exception as err:
-#     error(f"{err}")
-# return False
-
-
-# async def cmd_app(args: Namespace) -> WGApiWoTBlitzTankopedia | None:
-#     """Read Tankopedia from game files"""
-#     debug("starting")
-#     tasks: list[Task] = []
-#     try:
-#         blitz_app_dir: Path = Path(args.blitz_app_dir)
-#         if (blitz_app_dir / "assets").is_dir():
-#             # WG has changed the location of Data directory - at least in steam client
-#             blitz_app_dir = blitz_app_dir / "assets"
-#         debug("base dir for game files: %s", str(blitz_app_dir))
-
-#         for nation in EnumNation:
-#             tasks.append(create_task(extract_tanks(blitz_app_dir, nation)))
-
-#         tanks: list[Tank] = list()
-#         # user_strs: dict[int, str] = dict()
-#         for nation_tanks in await gather(*tasks):
-#             tanks.extend(nation_tanks)
-
-#         tank_strs: dict[str, str] = await read_tank_strs(blitz_app_dir)
-#         tankopedia = WGApiWoTBlitzTankopedia()
-
-#         tanks_ok: list[Tank]
-#         tanks_nok: list[Tank]
-#         tanks_ok, tanks_nok = convert_tank_names(tanks, tank_strs)
-#         for tank in tanks_ok:
-#             tankopedia.add(tank)
-
-#         async with WGApi(default_region=Region(args.wg_region), rate_limit=0) as wg:
-#             _re_tank: Pattern = compile("^#\\w+?_vehicles:")
-#             for tank in tanks_nok:
-#                 if (
-#                     tank.code is not None
-#                     and (tank_str := await wg.get_tank_str(tank.code)) is not None
-#                 ):
-#                     tank.name = tank_str.user_string
-#                     if _re_tank.match(tank.name):
-#                         tank.name = tank.code
-#                 else:
-#                     error(f"could not fetch tank name for tank_id={tank.tank_id}")
-#                 tankopedia.add(tank)
-
-#         return tankopedia
-#     except Exception as err:
-#         error(err)
-#     return None
-
-
-# async def cmd_file(args: Namespace) -> WGApiWoTBlitzTankopedia | None:
-#     debug("starting")
-#     return await WGApiWoTBlitzTankopedia.open_json(args.infile)
-
-
-# async def cmd_wg(args: Namespace) -> WGApiWoTBlitzTankopedia | None:
-#     debug("starting")
-#     async with WGApi(app_id=args.wg_app_id) as wg:
-#         return await wg.get_tankopedia(region=Region(args.wg_region))
 
 
 def extract_tanks_xml(tankopedia: dict[str, Any], nation: EnumNation) -> list[Tank]:
