@@ -14,8 +14,6 @@ from pyutils import MultilevelFormatter
 from pyutils.utils import set_config
 from blitzutils import get_config_file
 
-# path.insert(0, str(Path(__file__).parent.parent.resolve()))
-
 from .metadata import tankopedia, maps
 
 # logging.getLogger("asyncio").setLevel(logging.DEBUG)
@@ -32,7 +30,7 @@ MAPS: str = "maps.json"
 
 
 ## main() -------------------------------------------------------------
-@click.group(help="CLI tool extrac WoT Blitz Tankopedia and Maps from ")
+@click.group(help="CLI tool extract WoT Blitz metadata for other tools")
 @click.option(
     "--normal",
     "LOG_LEVEL",
@@ -79,54 +77,6 @@ def cli(
 # Add sub commands
 cli.add_command(tankopedia.tankopedia)  # type: ignore
 cli.add_command(maps.maps)  # type: ignore
-
-
-# cmd_parsers = parser.add_subparsers(
-#     dest="main_cmd",
-#     title="main commands",
-#     description="valid subcommands",
-#     metavar="tankopedia | maps",
-# )
-# cmd_parsers.required = True
-
-# tankopedia_parser = cmd_parsers.add_parser(
-#     "tankopedia", aliases=["tp"], help="tankopedia help"
-# )
-# maps_parser = cmd_parsers.add_parser("maps", aliases=["map"], help="maps help")
-
-# if not tankopedia.add_args(tankopedia_parser, config):
-#     raise Exception("Failed to define argument parser for: tankopedia")
-
-# if not maps.add_args(maps_parser, config):
-#     raise Exception("Failed to define argument parser for: maps")
-
-# debug("parsing full args")
-# args = parser.parse_args(args=argv)
-# if args.help:
-#     parser.print_help()
-# debug("arguments given:")
-# debug(str(args))
-
-# if args.main_cmd == "tankopedia":
-#     if not await tankopedia.cmd(args):
-#         sys.exit(1)
-# elif args.main_cmd in ["maps", "map"]:
-#     if not await maps.cmd(args):
-#         sys.exit(1)
-
-
-# ### main()
-# if __name__ == "__main__":
-#     # To avoid 'Event loop is closed' RuntimeError due to compatibility issue with aiohttp
-#     if sys.platform.startswith("win") and sys.version_info >= (3, 8):
-#         try:
-#             from asyncio import WindowsSelectorEventLoopPolicy
-#         except ImportError:
-#             pass
-#         else:
-#             if not isinstance(get_event_loop_policy(), WindowsSelectorEventLoopPolicy):
-#                 set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-#     run(main())
 
 
 ########################################################
