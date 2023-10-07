@@ -6,10 +6,11 @@ from configparser import ConfigParser
 import sys
 from aiostream import stream, async_
 from aiostream.core import Stream
-from functools import wraps
+
 from alive_progress import alive_bar  # type: ignore
 
 from pyutils import FileQueue, EventCounter
+from pyutils.utils import coro
 from blitzutils import (
     WoTinspector,
     WGApiWoTBlitzTankopedia,
@@ -17,17 +18,6 @@ from blitzutils import (
     Maps,
     get_config_file,
 )
-
-
-def coro(f):
-    """decorator for async coroutines"""
-
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        return run(f(*args, **kwargs))
-
-    return wrapper
-
 
 logger = logging.getLogger()
 error = logger.error
