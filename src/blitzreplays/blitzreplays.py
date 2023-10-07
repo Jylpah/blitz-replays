@@ -13,9 +13,9 @@ from pyutils import MultilevelFormatter
 from pyutils.utils import set_config
 from blitzutils import get_config_file
 
-path.insert(0, str(Path(__file__).parent.parent.resolve()))
+# path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from replays import upload
+from .replays import upload
 
 logger = logging.getLogger()
 error = logger.error
