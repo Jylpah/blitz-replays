@@ -241,11 +241,7 @@ async def wg(
 ########################################################
 
 
-@tankopedia.command(  # type:ignore
-    help=""""read Tankopedia from a JSON file 
-    
-            INFILE is a JSON file to read maps from"""
-)
+@tankopedia.command(help="read Tankopedia from a JSON file")  # type:ignore
 @click.argument(
     "infile",
     type=click.Path(path_type=Path),
