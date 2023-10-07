@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 
-from os.path import isfile, isdir, dirname, realpath, expanduser, join as join_path
+import click
+from sys import path
 from pathlib import Path
 from typing import Optional, Any
 from configparser import ConfigParser
-from asyncio import set_event_loop_policy, run, create_task, get_event_loop_policy, Task
+import configparser
 
-import sys, argparse, logging
+import sys, logging
 import logging
 
 from pyutils import MultilevelFormatter
+from pyutils.utils import set_config
 from blitzutils import get_config_file
 
-sys.path.insert(0, dirname(dirname(realpath(__file__))))
+path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from blitzreplays import tankopedia
-from blitzreplays import maps
+from metadata import tankopedia, maps
 
 # logging.getLogger("asyncio").setLevel(logging.DEBUG)
 logger = logging.getLogger()
@@ -24,130 +25,94 @@ message = logger.warning
 verbose = logger.info
 debug = logger.debug
 
-FILE_CONFIG = "blitzstats.ini"
+CONFIG_FILE: Path | None = get_config_file()
+
+
+MAPS: str = "maps.json"
 
 
 ## main() -------------------------------------------------------------
-async def main() -> None:
+@click.group(help="CLI tool extrac WoT Blitz Tankopedia and Maps from ")
+@click.option(
+    "--normal",
+    "LOG_LEVEL",
+    flag_value=logging.WARNING,
+    default=True,
+    help="default verbosity",
+)
+@click.option("--verbose", "LOG_LEVEL", flag_value=logging.INFO, help="verbose logging")
+@click.option("--debug", "LOG_LEVEL", flag_value=logging.DEBUG, help="debug logging")
+@click.option(
+    "--config",
+    "config_file",
+    type=click.Path(),
+    default=CONFIG_FILE,
+    help=f"read config from file (default: {CONFIG_FILE})",
+)
+@click.option(
+    "--log", type=click.Path(path_type=Path), default=None, help="log to FILE"
+)
+@click.pass_context
+def cli(
+    ctx: click.Context,
+    LOG_LEVEL: int = logging.WARNING,
+    config_file: Path | None = CONFIG_FILE,
+    log: Path | None = None,
+) -> None:
+    """CLI app to extract WoT Blitz tankopedia and maps for other tools"""
     global logger, error, debug, verbose, message
-    # set the directory for the script
-    # os.chdir(os.path.dirname(sys.argv[0]))
 
-    ## Read config
-    _PKG_NAME = "blitzreplays"
-    CONFIG = _PKG_NAME + ".ini"
-    LOG = _PKG_NAME + ".log"
-    config: Optional[ConfigParser] = None
-    CONFIG_FILE: str | None = None
-    if (c := get_config_file()) is not None:
-        CONFIG_FILE = str(c.resolve())
+    MultilevelFormatter.setDefaults(logger, log_file=log)
+    logger.setLevel(LOG_LEVEL)
+    ctx.ensure_object(dict)
 
-    parser = argparse.ArgumentParser(
-        description="Read/update Blitz metadata", add_help=False
-    )
-    arggroup_verbosity = parser.add_mutually_exclusive_group()
-    arggroup_verbosity.add_argument(
-        "--debug",
-        "-d",
-        dest="LOG_LEVEL",
-        action="store_const",
-        const=logging.DEBUG,
-        help="Debug mode",
-    )
-    arggroup_verbosity.add_argument(
-        "--verbose",
-        "-v",
-        dest="LOG_LEVEL",
-        action="store_const",
-        const=logging.INFO,
-        help="Verbose mode",
-    )
-    arggroup_verbosity.add_argument(
-        "--silent",
-        "-s",
-        dest="LOG_LEVEL",
-        action="store_const",
-        const=logging.CRITICAL,
-        help="Silent mode",
-    )
-    parser.add_argument(
-        "--log",
-        type=str,
-        nargs="?",
-        default=None,
-        const=f"{LOG}",
-        help="Enable file logging",
-    )
-    parser.add_argument(
-        "--config",
-        type=str,
-        default=CONFIG_FILE,
-        metavar="CONFIG",
-        help="Read config from CONFIG",
-    )
-    parser.set_defaults(LOG_LEVEL=logging.WARNING)
+    config: ConfigParser = ConfigParser(allow_no_value=True)
+    if config_file is not None:
+        try:
+            config.read(config_file)
+        except configparser.Error as err:
+            error(f"could not read config file {config_file}: {err}")
+            exit(1)
+    ctx.obj["config"] = config
 
-    args, argv = parser.parse_known_args()
 
-    # setup logging
-    logger.setLevel(args.LOG_LEVEL)
-    logger_conf: dict[int, str] = {
-        logging.INFO: "%(message)s",
-        logging.WARNING: "%(message)s",
-        # logging.ERROR: 		'%(levelname)s: %(message)s'
-    }
-    MultilevelFormatter.setLevels(
-        logger,
-        fmts=logger_conf,
-        fmt="%(levelname)s: %(funcName)s(): %(message)s",
-        log_file=args.log,
-    )
-    error = logger.error
-    message = logger.warning
-    verbose = logger.info
-    debug = logger.debug
+# Add sub commands
+cli.add_command(tankopedia.tankopedia)  # type: ignore
+cli.add_command(maps.maps)  # type: ignore
 
-    if args.config is not None and isfile(args.config):
-        debug("Reading config from %s", args.config)
-        config = ConfigParser()
-        config.read(args.config)
-    else:
-        debug("No config file found")
-    # Parse command args
-    parser.add_argument("-h", "--help", action="store_true", help="Show help")
 
-    cmd_parsers = parser.add_subparsers(
-        dest="main_cmd",
-        title="main commands",
-        description="valid subcommands",
-        metavar="tankopedia | maps",
-    )
-    cmd_parsers.required = True
+# cmd_parsers = parser.add_subparsers(
+#     dest="main_cmd",
+#     title="main commands",
+#     description="valid subcommands",
+#     metavar="tankopedia | maps",
+# )
+# cmd_parsers.required = True
 
-    tankopedia_parser = cmd_parsers.add_parser(
-        "tankopedia", aliases=["tp"], help="tankopedia help"
-    )
-    maps_parser = cmd_parsers.add_parser("maps", aliases=["map"], help="maps help")
+# tankopedia_parser = cmd_parsers.add_parser(
+#     "tankopedia", aliases=["tp"], help="tankopedia help"
+# )
+# maps_parser = cmd_parsers.add_parser("maps", aliases=["map"], help="maps help")
 
-    if not tankopedia.add_args(tankopedia_parser, config):
-        raise Exception("Failed to define argument parser for: tankopedia")
+# if not tankopedia.add_args(tankopedia_parser, config):
+#     raise Exception("Failed to define argument parser for: tankopedia")
 
-    if not maps.add_args(maps_parser, config):
-        raise Exception("Failed to define argument parser for: maps")
+# if not maps.add_args(maps_parser, config):
+#     raise Exception("Failed to define argument parser for: maps")
 
-    debug("parsing full args")
-    args = parser.parse_args(args=argv)
-    if args.help:
-        parser.print_help()
-    debug("arguments given:")
-    debug(str(args))
+# debug("parsing full args")
+# args = parser.parse_args(args=argv)
+# if args.help:
+#     parser.print_help()
+# debug("arguments given:")
+# debug(str(args))
 
-    if args.main_cmd == "tankopedia":
-        if not await tankopedia.cmd(args):
-            sys.exit(1)
-    elif args.main_cmd in ["maps", "map"]:
-        if not await maps.cmd(args):
-            sys.exit(1)
+# if args.main_cmd == "tankopedia":
+#     if not await tankopedia.cmd(args):
+#         sys.exit(1)
+# elif args.main_cmd in ["maps", "map"]:
+#     if not await maps.cmd(args):
+#         sys.exit(1)
 
 
 # ### main()
@@ -172,7 +137,7 @@ async def main() -> None:
 
 
 def cli_main():
-    run(main())
+    cli(obj={})
 
 
 if __name__ == "__main__":
