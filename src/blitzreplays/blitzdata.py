@@ -16,7 +16,7 @@ from blitzutils import get_config_file
 
 path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from blitzreplays.metadata import tankopedia
+from blitzreplays.metadata import tankopedia, maps
 
 # logging.getLogger("asyncio").setLevel(logging.DEBUG)
 logger = logging.getLogger()
@@ -78,7 +78,7 @@ def cli(
 
 # Add sub commands
 cli.add_command(tankopedia.tankopedia)  # type: ignore
-# cli.add_command(maps.maps)  # type: ignore
+cli.add_command(maps.maps)  # type: ignore
 
 
 # cmd_parsers = parser.add_subparsers(
