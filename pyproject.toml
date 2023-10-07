@@ -31,7 +31,7 @@ dependencies = [
     # "lz4>=4.3.2",
     "sortedcollections>=2.1.0",
     "PyYAML>=6.0",
-    "pyutils @ git+https://github.com/Jylpah/pyutils.git@dev",
+    "pyutils @ git+https://github.com/Jylpah/pyutils.git",
     "blitz-utils @ git+https://github.com/Jylpah/blitz-utils.git",
     "dvplc @ git+https://github.com/Jylpah/dvplc.git",
 ]
