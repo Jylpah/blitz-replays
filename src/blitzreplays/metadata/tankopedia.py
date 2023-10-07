@@ -117,7 +117,7 @@ async def app(
     wg_region: str | None = None,
     blitz_app_dir: Path | None = None,
 ):
-    """Read Tankopedia from game files (Steam Client)"""
+    """Extract Tankopedia from game files"""
     debug("starting")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
