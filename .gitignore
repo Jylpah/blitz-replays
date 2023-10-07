@@ -171,3 +171,7 @@ cython_debug/
 # utils
 
 /*.py
+
+# metadata
+!/maps.json
+!/tanks.json

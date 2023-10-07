@@ -13,9 +13,9 @@ from pyutils import MultilevelFormatter
 from pyutils.utils import set_config
 from blitzutils import get_config_file
 
-path.insert(0, dirname(dirname(realpath(__file__))))
+path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from blitzreplays import replays_upload
+from replays import upload
 
 logger = logging.getLogger()
 error = logger.error
@@ -29,13 +29,10 @@ debug = logger.debug
 #
 ##############################################
 
-
-_PKG_NAME = "blitz-replays"
-LOG = _PKG_NAME + ".log"
 CONFIG_FILE: Path | None = get_config_file()
 WI_RATE_LIMIT: float = 20 / 3600
 WI_AUTH_TOKEN: str | None = None
-WI_WORKERS: int = 3
+WI_WORKERS: int = 1
 TANKOPEDIA: str = "tanks.json"
 MAPS: str = "maps.json"
 
@@ -100,7 +97,7 @@ def cli(
     wi_auth_token: str | None = None,
     tankopedia: str | None = None,
     maps: str | None = None,
-):
+) -> None:
     """CLI app to upload WoT Blitz replays"""
     global logger, error, debug, verbose, message
 
@@ -117,17 +114,29 @@ def cli(
             error(f"could not read config file {config_file}: {err}")
             exit(1)
 
-    set_config(config, "WOTINSPECTOR", "rate_limit", wi_rate_limit, WI_RATE_LIMIT)
-    set_config(config, "WOTINSPECTOR", "auth_token", wi_auth_token, WI_AUTH_TOKEN)
+    set_config(config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit", wi_rate_limit)
+    set_config(config, WI_AUTH_TOKEN, "WOTINSPECTOR", "auth_token", wi_auth_token)
 
-    set_config(config, "METADATA", "tankopedia_json", tankopedia, TANKOPEDIA)
-    set_config(config, "METADATA", "maps_json", maps, MAPS)
+    set_config(
+        config,
+        TANKOPEDIA,
+        "METADATA",
+        "tankopedia_json",
+        tankopedia,
+    )
+    set_config(
+        config,
+        MAPS,
+        "METADATA",
+        "maps_json",
+        maps,
+    )
 
     ctx.obj["config"] = config
 
 
 # Add sub commands
-cli.add_command(replays_upload.upload)  # type: ignore
+cli.add_command(upload.upload)  # type: ignore
 
 ########################################################
 #
@@ -141,5 +150,4 @@ def cli_main():
 
 
 if __name__ == "__main__":
-    # asyncio.run(main(sys.argv[1:]), debug=True)
     cli_main()
