@@ -11,6 +11,9 @@ from pydantic import BaseModel
 from random import shuffle
 import logging
 
+
+# sys.path.insert(0, str(Path(__file__).parent.parent.resolve() / "src"))
+
 from blitzreplays.blitzdata import cli
 
 logger = logging.getLogger()

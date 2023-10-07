@@ -101,8 +101,9 @@ reportInvalidStringEscapeSequence = false
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-v --cov=src"
+addopts = ["-v", "--cov=src", "--import-mode=importlib"]
 testpaths = ["tests"]
+pythonpath = "src"
 filterwarnings = [
     'ignore:Inheritance class ThrottledClientSession from ClientSession is discouraged:DeprecationWarning',
     'ignore::coverage.control.CoverageWarning:coverage.control',
