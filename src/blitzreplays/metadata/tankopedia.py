@@ -94,7 +94,7 @@ def tankopedia(
 ########################################################
 
 
-@tankopedia.command(help="extract Tankopedia from Blitz game files")  # type:ignore
+@tankopedia.command(help="extract Tankopedia from Blitz game files")
 @click.option("--wg-app-id", type=str, default=None, help="WG app ID")
 @click.option(
     "--wg-region",
@@ -195,7 +195,7 @@ async def app(
 ########################################################
 
 
-@tankopedia.command(help="get Tankopedia from WG API")  # type:ignore
+@tankopedia.command(help="get Tankopedia from WG API")
 @click.option("--wg-app-id", type=str, default=None, help="WG app ID")
 @click.option(
     "--wg-region",
@@ -241,7 +241,7 @@ async def wg(
 ########################################################
 
 
-@tankopedia.command(help="read Tankopedia from a JSON file")  # type:ignore
+@tankopedia.command(help="read Tankopedia from a JSON file")
 @click.argument(
     "infile",
     type=click.Path(path_type=Path),

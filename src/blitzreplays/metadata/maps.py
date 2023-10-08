@@ -74,7 +74,7 @@ def maps(ctx: click.Context, force: bool = False, outfile: str | None = None) ->
 ########################################################
 
 
-@maps.command(help="read maps data from Blitz game files")  # type:ignore
+@maps.command(help="read maps data from Blitz game files")
 @click.option("--wg-app-id", type=str, default=None, help="WG app ID")
 @click.option(
     "--wg-region",
@@ -172,7 +172,7 @@ async def app(
 ########################################################
 
 
-@maps.command(help="read maps data from a JSON file")  # type:ignore
+@maps.command(help="read maps data from a JSON file")
 @click.argument(
     "infile",
     type=click.Path(path_type=Path),
