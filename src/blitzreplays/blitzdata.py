@@ -14,7 +14,7 @@ from os.path import dirname, realpath
 sys.path.insert(0, dirname(dirname(realpath(__file__))))
 import configparser
 import logging
-
+from icecream import ic  # type: ignore
 
 from pyutils import MultilevelFormatter
 from pyutils.utils import set_config
@@ -64,28 +64,28 @@ app.add_typer(tankopedia.typer_app, name="tankopedia")
 def cli(
     ctx: typer.Context,
     print_verbose: Annotated[
-        int,
+        bool,
         typer.Option(
             "--verbose",
             "-v",
-            is_flag=True,
-            flag_value=logging.INFO,
             show_default=False,
             metavar="",
             help="verbose logging",
         ),
-    ] = logging.WARNING,
+    ] = False,
     print_debug: Annotated[
-        int,
+        bool,
         typer.Option(
             "--debug",
-            is_flag=True,
-            flag_value=logging.DEBUG,
             show_default=False,
             metavar="",
             help="debug logging",
         ),
-    ] = logging.WARNING,
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(show_default=False, help="Overwrite instead of updating data"),
+    ] = False,
     config_file: Annotated[
         Optional[Path],
         typer.Option("--config", help=f"read config from FILE", metavar="FILE"),
@@ -97,7 +97,11 @@ def cli(
     """CLI app to extract WoT Blitz tankopedia and maps for other tools"""
     global logger, error, debug, verbose, message
 
-    LOG_LEVEL: int = min([print_debug, print_verbose])
+    LOG_LEVEL: int = logging.WARNING
+    if print_verbose:
+        LOG_LEVEL = logging.INFO
+    elif print_debug:
+        LOG_LEVEL = logging.DEBUG
     MultilevelFormatter.setDefaults(logger, log_file=log)
     logger.setLevel(LOG_LEVEL)
     ctx.ensure_object(dict)
@@ -110,6 +114,7 @@ def cli(
             error(f"could not read config file {config_file}: {err}")
             exit(1)
     ctx.obj["config"] = config
+    ctx.obj["force"] = force
 
 
 ########################################################

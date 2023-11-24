@@ -128,10 +128,23 @@ def tankopedia(
 @typer_app.command()
 def app(
     ctx: typer.Context,
-    wg_app_id: Annotated[Optional[str], typer.Option(help="WG app ID")] = None,
-    wg_region: Annotated[Region, typer.Option(help=f"WG API region")] = WG_REGION,
+    wg_app_id: Annotated[
+        Optional[str], typer.Option(show_default=False, help="WG app ID")
+    ] = None,
+    wg_region: Annotated[
+        Optional[Region],
+        typer.Option(
+            help=f"WG API region", metavar="[eu|asia|com]", show_default=False
+        ),
+    ] = None,
     blitz_app_dir: Annotated[
-        Optional[Path], typer.Argument(help="Blitz game files directory")
+        Optional[Path],
+        typer.Argument(
+            show_default=False,
+            file_okay=False,
+            # metavar="DIR",
+            help="Blitz game files directory",
+        ),
     ] = None,
 ):
     """
@@ -143,7 +156,9 @@ def app(
         wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
         region: Region
         if wg_region is None:
-            region = Region(set_config(config, WG_REGION, "WG", "default_region", None))
+            region = Region(
+                set_config(config, WG_REGION.value, "WG", "default_region", None)
+            )
         else:
             region = wg_region
         outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
