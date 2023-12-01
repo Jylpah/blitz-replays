@@ -6,7 +6,8 @@ import subprocess
 from os.path import dirname, realpath, join as pjoin, basename
 from pathlib import Path
 import aiofiles
-from click.testing import CliRunner, Result
+from typer.testing import CliRunner
+from click.testing import Result
 from pydantic import BaseModel
 from random import shuffle
 import logging
@@ -14,7 +15,7 @@ import logging
 
 # sys.path.insert(0, str(Path(__file__).parent.parent.resolve() / "src"))
 
-from blitzreplays.blitzdata import cli
+from blitzreplays.blitzdata import app
 
 logger = logging.getLogger()
 error = logger.error
@@ -121,7 +122,7 @@ def test_1_blitz_data_tankopedia(
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
     result: Result = CliRunner().invoke(
-        cli, ["tankopedia", "--force", "--outfile", OUTFILE, *args]
+        app, ["--force", "tankopedia", "--outfile", OUTFILE, *args]
     )
     assert result.exit_code == 0, f"blitzdata tankopedia {cmd} failed"
 
@@ -147,7 +148,7 @@ def test_2_blitz_data_tankopedia_update(
     cmd: str = args[0]
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
-    result = CliRunner().invoke(cli, ["tankopedia", "--outfile", OUTFILE, *args])
+    result = CliRunner().invoke(app, ["tankopedia", "--outfile", OUTFILE, *args])
     assert result.exit_code == 0, f"blitzdata tankopedia {cmd} failed"
 
     assert (
@@ -160,7 +161,7 @@ def test_2_blitz_data_tankopedia_update(
 def test_3_blitz_data_tankopedia_wg(tmp_path: Path) -> None:
     OUTFILE: str = f"{tmp_path / 'tankopedia-exported.json'}"
 
-    result = CliRunner().invoke(cli, ["tankopedia", "--outfile", OUTFILE, "wg"])
+    result = CliRunner().invoke(app, ["tankopedia", "--outfile", OUTFILE, "wg"])
     assert result.exit_code == 0, f"blitzdata tankopedia wg failed"
 
     assert (
