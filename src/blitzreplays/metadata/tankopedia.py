@@ -1,7 +1,8 @@
 import configparser
 from datetime import datetime
-from typing import Optional, Literal, Any, cast
-from typing_extensions import Annotated
+from typing import Optional, Any, Annotated
+
+# from typing_extensions import Annotated
 from asyncio import Task, create_task, gather, run
 from os.path import isfile
 from os import unlink
@@ -32,8 +33,9 @@ from blitzutils import (
 )
 from dvplc import decode_dvpl, decode_dvpl_file
 from pyutils.utils import get_temp_filename, coro, set_config
+from pyutils import AsyncTyper
 
-typer_app = typer.Typer()
+typer_app = AsyncTyper()
 
 logger = logging.getLogger()
 error = logger.error
@@ -96,7 +98,6 @@ def tankopedia(
         "tankopedia_json",
         outfile,
     )
-    # ctx.obj["force"] = force
 
 
 ########################################################
@@ -106,27 +107,8 @@ def tankopedia(
 ########################################################
 
 
-# @tankopedia.command(help="extract Tankopedia from Blitz game files")
-# @click.option("--wg-app-id", type=str, default=None, help="WG app ID")
-# @click.option(
-#     "--wg-region",
-#     type=click.Choice([r.name for r in Region.API_regions()], case_sensitive=False),
-#     default=None,
-#     help=f"WG API region (default: {WG_REGION})",
-# )
-# @click.argument(
-#     "blitz_app_dir",
-#     type=click.Path(path_type=Path, exists=True, file_okay=False),
-#     required=False,
-#     default=None,
-#     nargs=1,
-# )
-# @click.pass_context
-# @coro
-
-
-@typer_app.command()
-def app(
+@typer_app.async_command()
+async def app(
     ctx: typer.Context,
     wg_app_id: Annotated[
         Optional[str], typer.Option(show_default=False, help="WG app ID")
@@ -142,7 +124,6 @@ def app(
         typer.Argument(
             show_default=False,
             file_okay=False,
-            # metavar="DIR",
             help="Blitz game files directory",
         ),
     ] = None,
@@ -162,7 +143,6 @@ def app(
         else:
             region = wg_region
         outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
-
         force: bool = ctx.obj["force"]
         if blitz_app_dir is None:
             blitz_app_dir = Path(config.get("METADATA", "blitz_app_dir"))
@@ -179,16 +159,15 @@ def app(
     assert (
         blitz_app_dir.is_dir()
     ), f"--blitz-app-dir has to be a directory: {blitz_app_dir}"
-    run(
-        run_app(
-            blitz_app_dir=blitz_app_dir, region=region, outfile=outfile, force=force
-        )
-    )
+    #     run(
+    #         run_app(
+    #             blitz_app_dir=blitz_app_dir, region=region, outfile=outfile, force=force
+    #         )
+    #     )
 
-
-async def run_app(
-    blitz_app_dir: Path, region: Region, outfile: Path, force: bool = False
-):
+    # async def run_app(
+    #     blitz_app_dir: Path, region: Region, outfile: Path, force: bool = False
+    # ):
     tasks: list[Task] = []
     try:
         if (blitz_app_dir / "assets").is_dir():
@@ -240,18 +219,8 @@ async def run_app(
 ########################################################
 
 
-# @tankopedia.command(help="get Tankopedia from WG API")
-# @click.option("--wg-app-id", type=str, default=None, help="WG app ID")
-# @click.option(
-#     "--wg-region",
-#     type=click.Choice([r.name for r in Region.API_regions()], case_sensitive=False),
-#     default=None,
-#     help="Default WG API region",
-# )
-# @click.pass_context
-# @coro
-@typer_app.command()
-def wg(
+@typer_app.async_command()
+async def wg(
     ctx: typer.Context,
     wg_app_id: Annotated[Optional[str], typer.Option(help="WG app ID")] = None,
     wg_region: Annotated[
@@ -280,10 +249,7 @@ def wg(
     except Exception as err:
         error(f"{type(err)}: {err}")
         sys.exit(1)
-    run(run_wg(wg_app_id, region, outfile, force))
 
-
-async def run_wg(wg_app_id: str, region: Region, outfile: Path, force: bool = False):
     async with WGApi(app_id=wg_app_id) as wg:
         if (tankopedia := await wg.get_tankopedia(region=region)) is not None:
             await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
@@ -298,16 +264,8 @@ async def run_wg(wg_app_id: str, region: Region, outfile: Path, force: bool = Fa
 ########################################################
 
 
-# @tankopedia.command(help="read Tankopedia from a JSON file")
-# @click.argument(
-#     "infile",
-#     type=click.Path(path_type=Path),
-#     # help=f"Write Tankopedia to file (default: {TANKOPEDIA})",
-# )
-# @click.pass_context
-# @coro
-@typer_app.command()
-def file(
+@typer_app.async_command()
+async def file(
     ctx: typer.Context,
     infile: Annotated[Path, typer.Argument(help="read Tankopedia from file")],
 ):
@@ -323,10 +281,7 @@ def file(
     except Exception as err:
         error(f"{type(err)}: {err}")
         sys.exit(1)
-    run(run_file(infile, outfile, force))
 
-
-async def run_file(infile: Path, outfile: Path, force: bool = False):
     if (tankopedia := await WGApiWoTBlitzTankopedia.open_json(infile)) is not None:
         await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
     else:
