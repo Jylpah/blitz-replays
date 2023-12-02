@@ -267,7 +267,12 @@ async def wg(
 @typer_app.async_command()
 async def file(
     ctx: typer.Context,
-    infile: Annotated[Path, typer.Argument(help="read Tankopedia from file")],
+    infile: Annotated[
+        Path,
+        typer.Argument(
+            show_default=False, dir_okay=False, help="read Tankopedia from file"
+        ),
+    ],
 ):
     """Read tankopedia from a file"""
     debug("starting")
