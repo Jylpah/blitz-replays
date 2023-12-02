@@ -1,6 +1,8 @@
 from asyncio import Task
 from datetime import datetime
-from typing import Optional, Literal, Any, cast
+from typing import Optional, Literal, Any, cast, Annotated
+
+# from typing_extensions import Annotated
 from pathlib import Path
 from os import unlink
 from re import Pattern, Match, compile
@@ -8,11 +10,12 @@ from re import Pattern, Match, compile
 import sys
 import yaml
 import logging
-import click
+import typer
 import configparser
 
 from pyutils.utils import get_temp_filename, set_config, coro
-from blitzutils import Map, Maps, Region
+from pyutils import AsyncTyper
+from blitzutils import Map, Maps, Region, MapMode, MapModeStr
 from dvplc import decode_dvpl, decode_dvpl_file
 
 logger = logging.getLogger()
@@ -24,7 +27,9 @@ debug = logger.debug
 BLITZAPP_STRINGS: str = "Data/Strings/en.yaml"
 MAPS: str = "maps.json"
 WG_APP_ID: str = "d6d03acb6bee0e9f361b6e02e1780b56"
-WG_REGION: str = "eu"
+WG_REGION: Region = Region.eu
+
+typer_app = AsyncTyper()
 
 
 ###########################################
@@ -34,22 +39,15 @@ WG_REGION: str = "eu"
 ###########################################
 
 
-@click.group(help="extract maps data into a JSON file")
-@click.option(
-    "-f",
-    "--force",
-    flag_value=True,
-    default=False,
-    help="Overwrite maps data instead of updating it",
-)
-@click.option(
-    "--outfile",
-    type=click.Path(path_type=str),
-    default=None,
-    help=f"Write maps to file (default: {MAPS})",
-)
-@click.pass_context
-def maps(ctx: click.Context, force: bool = False, outfile: str | None = None) -> None:
+@typer_app.callback()
+def maps(
+    ctx: typer.Context,
+    # force: bool = False,
+    outfile: Annotated[
+        Optional[str],
+        typer.Option(help=f"Write maps to FILE", metavar="FILE"),
+    ] = None,
+) -> None:
     """extract maps data into a JSON file"""
     debug("starting")
     try:
@@ -61,7 +59,6 @@ def maps(ctx: click.Context, force: bool = False, outfile: str | None = None) ->
             "maps_json",
             outfile,
         )
-        ctx.obj["force"] = force
     except Exception as err:
         error(f"{type(err)}: {err}")
         sys.exit(1)
@@ -74,37 +71,41 @@ def maps(ctx: click.Context, force: bool = False, outfile: str | None = None) ->
 ########################################################
 
 
-@maps.command(help="read maps data from Blitz game files")
-@click.option("--wg-app-id", type=str, default=None, help="WG app ID")
-@click.option(
-    "--wg-region",
-    type=click.Choice([r.name for r in Region.API_regions()], case_sensitive=False),
-    default=None,
-    help=f"WG API region (default: {WG_REGION})",
-)
-@click.argument(
-    "blitz_app_dir",
-    type=click.Path(path_type=Path, exists=True, file_okay=False),
-    required=False,
-    default=None,
-    nargs=1,
-)
-@click.pass_context
-@coro
+@typer_app.async_command()
 async def app(
-    ctx: click.Context,
-    wg_app_id: str | None = None,
-    wg_region: str | None = None,
-    blitz_app_dir: Path | None = None,
+    ctx: typer.Context,
+    wg_app_id: Annotated[
+        Optional[str], typer.Option(show_default=False, help="WG app ID")
+    ] = None,
+    wg_region: Annotated[
+        Optional[Region],
+        typer.Option(
+            help=f"WG API region", metavar="[eu|asia|com]", show_default=False
+        ),
+    ] = None,
+    blitz_app_dir: Annotated[
+        Optional[Path],
+        typer.Argument(
+            show_default=False,
+            file_okay=False,
+            help="Blitz game files directory",
+        ),
+    ] = None,
 ):
-    """Read maps data from game files"""
+    """
+    Read maps data from game files
+    """
     debug("starting")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
         wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
-        region: Region = Region(
-            set_config(config, WG_REGION, "WG", "default_region", wg_region)
-        )
+        region: Region
+        if wg_region is None:
+            region = Region(
+                set_config(config, WG_REGION.value, "WG", "default_region", None)
+            )
+        else:
+            region = wg_region
         outfile: Path = Path(config.get("METADATA", "maps_json"))
         force: bool = ctx.obj["force"]
         if blitz_app_dir is None:
@@ -172,16 +173,17 @@ async def app(
 ########################################################
 
 
-@maps.command(help="read maps data from a JSON file")
-@click.argument(
-    "infile",
-    type=click.Path(path_type=Path),
-)
-@click.pass_context
-@coro
-async def file(ctx: click.Context, infile: Path):
-    """Read maps data from a file"""
-    click.echo(infile)
+@typer_app.async_command()
+async def file(
+    ctx: typer.Context,
+    infile: Annotated[
+        Path,
+        typer.Argument(show_default=False, dir_okay=False, help="read maps from file"),
+    ],
+):
+    """
+    Read maps data from a JSON file
+    """
     debug("starting")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
@@ -197,6 +199,56 @@ async def file(ctx: click.Context, infile: Path):
         await update_maps(outfile=outfile, maps=maps, force=force)
     else:
         error(f"could not read Maps from {infile}")
+
+
+########################################################
+#
+# maps list
+#
+########################################################
+
+
+@typer_app.async_command()
+async def list(
+    ctx: typer.Context,
+    file: Annotated[
+        Optional[Path],
+        typer.Argument(show_default=False, dir_okay=False, help="list maps from file"),
+    ] = None,
+    # TODO:
+    # -[ ] Add support for MapMode
+    # -[ ] might need a StrEnum() type of Enum instead of IntEnum()
+    map_mode: Annotated[
+        Optional[MapModeStr], typer.Option(help="list maps for of mode")
+    ] = MapModeStr.normal,
+    all: Annotated[bool, typer.Option(help="list all maps of all modes")] = False,
+):
+    """
+    list maps from a JSON file
+    """
+    debug("starting")
+    try:
+        config: configparser.ConfigParser = ctx.obj["config"]
+        if file is None:
+            file = Path(config.get("METADATA", "maps_json"))
+    except configparser.Error as err:
+        error(f"could not read config file: {type(err)}: {err}")
+        sys.exit(1)
+    except Exception as err:
+        error(f"{type(err)}: {err}")
+        sys.exit(1)
+    if (maps := await Maps.open_json(file)) is not None:
+        count: int = 0
+        for mode in MapModeStr:
+            if all or map_mode == mode:
+                print(f"map mode: {mode} =======================================")
+                for map in maps:
+                    if map.mode == mode.toMapMode:
+                        print(f"{map.key:<18}: {map.name}")
+                        count += 1
+        print(f"{count} maps in total (map mode = {'any' if all else map_mode})")
+    else:
+        error(f"could not read Maps from {file}")
 
 
 ###########################################
@@ -245,3 +297,7 @@ async def update_maps(outfile: Path, maps: Maps, force: bool = False):
     except Exception as err:
         error(f"{type(err)}: {err}")
     return None
+
+
+if __name__ == "__main__":
+    typer_app()
