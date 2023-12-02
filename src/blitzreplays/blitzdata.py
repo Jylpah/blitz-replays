@@ -20,7 +20,7 @@ from pyutils import MultilevelFormatter
 from pyutils.utils import set_config
 from blitzutils import get_config_file
 
-from blitzreplays.metadata import tankopedia
+from blitzreplays.metadata import tankopedia, maps
 
 logger = logging.getLogger()
 error = logger.error
@@ -34,30 +34,7 @@ MAPS: str = "maps.json"
 
 app = typer.Typer()
 app.add_typer(tankopedia.typer_app, name="tankopedia")
-
-
-## main() -------------------------------------------------------------
-# @click.group(help="CLI tool extract WoT Blitz metadata for other tools")
-# @click.option(
-#     "--normal",
-#     "LOG_LEVEL",
-#     flag_value=logging.WARNING,
-#     default=True,
-#     help="default verbosity",
-# )
-# @click.option("--verbose", "LOG_LEVEL", flag_value=logging.INFO, help="verbose logging")
-# @click.option("--debug", "LOG_LEVEL", flag_value=logging.DEBUG, help="debug logging")
-# @click.option(
-#     "--config",
-#     "config_file",
-#     type=click.Path(),
-#     default=CONFIG_FILE,
-#     help=f"read config from file (default: {CONFIG_FILE})",
-# )
-# @click.option(
-#     "--log", type=click.Path(path_type=Path), default=None, help="log to FILE"
-# )
-# @click.pass_context
+app.add_typer(maps.typer_app, name="maps")
 
 
 @app.callback()
