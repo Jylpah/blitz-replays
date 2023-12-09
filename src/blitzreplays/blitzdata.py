@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
-# import click
 import typer
 
 # from sys import path
 from pathlib import Path
-from typing import Optional, Any
-from typing_extensions import Annotated
+from typing import Optional, Any, Annotated
 from configparser import ConfigParser
 import sys
 from os.path import dirname, realpath

@@ -61,7 +61,7 @@ def maps(
         )
     except Exception as err:
         error(f"{type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
 
 
 ########################################################
@@ -74,15 +74,15 @@ def maps(
 @typer_app.async_command()
 async def app(
     ctx: typer.Context,
-    wg_app_id: Annotated[
-        Optional[str], typer.Option(show_default=False, help="WG app ID")
-    ] = None,
-    wg_region: Annotated[
-        Optional[Region],
-        typer.Option(
-            help=f"WG API region", metavar="[eu|asia|com]", show_default=False
-        ),
-    ] = None,
+    # wg_app_id: Annotated[
+    #     Optional[str], typer.Option(show_default=False, help="WG app ID")
+    # ] = None,
+    # wg_region: Annotated[
+    #     Optional[Region],
+    #     typer.Option(
+    #         help=f"WG API region", metavar="[eu|asia|com]", show_default=False
+    #     ),
+    # ] = None,
     blitz_app_dir: Annotated[
         Optional[Path],
         typer.Argument(
@@ -96,26 +96,29 @@ async def app(
     Read maps data from game files
     """
     debug("starting")
+    force: bool = False
+    outfile: Path = Path("__ERROR_NOT_EXISTING__")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
-        wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
-        region: Region
-        if wg_region is None:
-            region = Region(
-                set_config(config, WG_REGION.value, "WG", "default_region", None)
-            )
-        else:
-            region = wg_region
-        outfile: Path = Path(config.get("METADATA", "maps_json"))
-        force: bool = ctx.obj["force"]
+        # wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
+        ## region: Region
+        # if wg_region is None:
+        ##     region = Region(
+        #         set_config(config, WG_REGION.value, "WG", "default_region", None)
+        #     )
+        # else:
+        ##     region = wg_region
+        outfile = Path(config.get("METADATA", "maps_json"))
+        force = ctx.obj["force"]
         if blitz_app_dir is None:
             blitz_app_dir = Path(config.get("METADATA", "blitz_app_dir"))
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
+    assert isinstance(force, bool), f"error: 'force' is not bool: {type(force)}"
     assert (
         blitz_app_dir is not None
     ), "Set --blitz-app-dir or define it in config file ('blitz_app_dir' in 'METADATA' section)"
@@ -185,16 +188,18 @@ async def file(
     Read maps data from a JSON file
     """
     debug("starting")
+    force: bool = False
+    outfile: Path = Path("__ERROR_NOT_EXISTING__")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
-        outfile: Path = Path(config.get("METADATA", "maps_json"))
-        force: bool = ctx.obj["force"]
+        outfile = Path(config.get("METADATA", "maps_json"))
+        force = ctx.obj["force"]
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
     if (maps := await Maps.open_json(infile)) is not None:
         await update_maps(outfile=outfile, maps=maps, force=force)
     else:
@@ -233,10 +238,11 @@ async def list(
             file = Path(config.get("METADATA", "maps_json"))
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
+    assert isinstance(file, Path), f"file is not type of Path(): {type(file)}"
     if (maps := await Maps.open_json(file)) is not None:
         count: int = 0
         for mode in MapModeStr:

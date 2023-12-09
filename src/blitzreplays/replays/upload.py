@@ -1,4 +1,5 @@
-import click
+import typer
+from typing import Annotated, Optional, List
 from asyncio import run, Task, create_task, wait
 import logging
 from pathlib import Path
@@ -9,7 +10,7 @@ from aiostream.core import Stream
 
 from alive_progress import alive_bar  # type: ignore
 
-from pyutils import FileQueue, EventCounter
+from pyutils import FileQueue, EventCounter, AsyncTyper
 from pyutils.utils import coro
 from blitzutils import (
     WoTinspector,
@@ -18,6 +19,8 @@ from blitzutils import (
     Maps,
     get_config_file,
 )
+
+typer_app = AsyncTyper()
 
 logger = logging.getLogger()
 error = logger.error
@@ -31,9 +34,9 @@ debug = logger.debug
 #
 ##############################################
 
-_PKG_NAME = "blitz-replays"
-LOG = _PKG_NAME + ".log"
-CONFIG_FILE: Path | None = get_config_file()
+# _PKG_NAME = "blitz-replays"
+# LOG = _PKG_NAME + ".log"
+# CONFIG_FILE: Path | None = get_config_file()
 
 WI_RATE_LIMIT: float = 20 / 3600
 WI_AUTH_TOKEN: str | None = None
@@ -41,91 +44,85 @@ WI_WORKERS: int = 3
 
 ##############################################
 #
-## cli_xxx()
+## upload()
 #
 ##############################################
 
 
-@click.command()
-@click.option(
-    "--json",
-    "fetch_json",
-    flag_value=True,
-    default=None,
-    help="fetch replay JSON files for analysis (default=False)",
-)
-@click.option(
-    "--uploaded_by",
-    type=int,
-    default=0,
-    help="WG account_id of the uploader",
-)
-@click.option(
-    "--private",
-    "private",
-    flag_value=True,
-    default=None,
-    help="upload replays as private without listing those publicly (default=False)",
-)
-@click.argument("replays", type=click.Path(path_type=Path), nargs=-1)
-@click.pass_context
-@coro
+@typer_app.async_command()
 async def upload(
-    ctx: click.Context,
-    fetch_json: bool | None = None,
-    uploaded_by: int = 0,
-    private: bool | None = None,
-    replays: list[Path] = list(),
+    ctx: typer.Context,
+    fetch_json: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--json",
+            show_default=False,
+            help="fetch replay JSON file for replay analysis. Default is False",
+        ),
+    ] = None,
+    uploaded_by: Annotated[
+        int, typer.Option(help="WG account_id of the uploader (you)")
+    ] = 0,
+    private: Annotated[
+        Optional[bool],
+        typer.Option(
+            show_default=False,
+            help="upload replays as private without listing those publicly (default=False)",
+        ),
+    ] = None,
+    replays: Annotated[List[Path], typer.Argument(help="replays to upload")] = list(),
 ) -> int:
-    tankopedia_fn: Path | None = None
-    maps_fn: Path | None = None
+    """
+    upload replays to https://WoTinspector.com
+    """
+    tankopedia: WGApiWoTBlitzTankopedia
+    maps: Maps
+    wi_rate_limit: float
+    wi_auth_token: str | None
     try:
         config: ConfigParser = ctx.obj["config"]
         configWI = config["WOTINSPECTOR"]
-        wi_rate_limit: float = configWI.getfloat("rate_limit")
-        wi_auth_token: str = configWI.get("auth_token")
+        if not isinstance(
+            wi_rate_limit := configWI.getfloat("rate_limit", fallback=WI_RATE_LIMIT),
+            float,
+        ):
+            raise ValueError("could not set WI rate limit")
+        wi_auth_token = configWI.get("auth_token", fallback=WI_AUTH_TOKEN)
+        if not (wi_auth_token is None or isinstance(wi_auth_token, str)):
+            raise ValueError("could not set WI authentication token")
+        debug(f"wi_rate_limit={wi_rate_limit}, wi_auth_token={wi_auth_token}")
+
+        if fetch_json is None:
+            fetch_json = configWI.getboolean("fetch_json", False)
+        debug(f"fetch_json={fetch_json}")
+
+        if private is None:
+            private = configWI.getboolean("upload_private", False)
+        debug(f"private={private}")
+        if uploaded_by == 0:
+            uploaded_by = config.getint(section="WG", option="wg_id", fallback=0)
+        debug(f"uploaded_by={uploaded_by}")
+
+        tankopedia = ctx.obj["tankopedia"]
+        maps = ctx.obj["maps"]
+
     except KeyError as err:
         error(f"could not read all the params: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
+        assert False, "trick Mypy..."
+    except ValueError as err:
+        error(f"could not set configuration option: {err}")
+        typer.Exit(code=2)
+        assert False, "trick Mypy..."
 
-    debug(f"wi_rate_limit={wi_rate_limit}, wi_auth_token={wi_auth_token}")
     WI = WoTinspector(rate_limit=wi_rate_limit, auth_token=wi_auth_token)
-
-    if fetch_json is None:
-        fetch_json = configWI.getboolean("fetch_json", False)
-    debug(f"fetch_json={fetch_json}")
-    if private is None:
-        private = configWI.getboolean("upload_private", False)
-    debug(f"private={private}")
-    if uploaded_by == 0:
-        uploaded_by = config.getint(section="WG", option="wg_id", fallback=0)
-    debug(f"uploaded_by={uploaded_by}")
-
-    try:
-        tankopedia_fn = Path(config.get(section="METADATA", option="tankopedia_json"))
-        maps_fn = Path(config.get(section="METADATA", option="maps_json"))
-    except (TypeError, KeyError) as err:
-        debug(f"could not open maps or tankopedia: {err}")
-
-    tankopedia: WGApiWoTBlitzTankopedia | None = None
-    maps: Maps | None = None
-
-    if (
-        tankopedia_fn is None
-        or (tankopedia := await WGApiWoTBlitzTankopedia.open_json(tankopedia_fn))
-        is None
-    ):
-        verbose(f"could not open tankopedia: {tankopedia_fn}")
-    if maps_fn is None or (maps := await Maps.open_json(maps_fn)) is None:
-        verbose(f"could not open maps: {maps_fn}")
-
     stats = EventCounter("Upload replays")
     replayQ = FileQueue(filter="*.wotbreplay")
     await replayQ.mk_queue(replays)
 
     try:
         with alive_bar(
-            replayQ.qsize(), title="Posting replays", enrich_print=False
+            replayQ.qsize(), title="Uploading replays", enrich_print=False
         ) as bar:
             async for fn in replayQ:
                 try:
@@ -182,11 +179,5 @@ async def upload(
 #
 ########################################################
 
-
-def cli_main():
-    run(upload())
-
-
 if __name__ == "__main__":
-    # asyncio.run(main(sys.argv[1:]), debug=True)
-    cli_main()
+    typer_app()

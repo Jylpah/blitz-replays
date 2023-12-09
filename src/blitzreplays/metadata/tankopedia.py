@@ -148,10 +148,10 @@ async def app(
             blitz_app_dir = Path(config.get("METADATA", "blitz_app_dir"))
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
 
     assert (
         blitz_app_dir is not None
@@ -245,10 +245,10 @@ async def wg(
 
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
 
     async with WGApi(app_id=wg_app_id) as wg:
         if (tankopedia := await wg.get_tankopedia(region=region)) is not None:
@@ -282,10 +282,10 @@ async def file(
         force: bool = ctx.obj["force"]
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        sys.exit(1)
+        typer.Exit(code=1)
 
     if (tankopedia := await WGApiWoTBlitzTankopedia.open_json(infile)) is not None:
         await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
