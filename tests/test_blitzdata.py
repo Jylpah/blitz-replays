@@ -126,7 +126,7 @@ MAPS_FILES = pytest.mark.datafiles(
     ],
 )
 @TANKOPEDIA_FILES
-def test_1_blitz_data_tankopedia(
+def test_1_blitzdata_tankopedia(
     tmp_path: Path, datafiles: Path, args: list[str], added: int, updated: int
 ) -> None:
     OUTFILE: str = f'{tmp_path / "test_1_tankopedia.json"}'
@@ -153,7 +153,7 @@ def test_1_blitz_data_tankopedia(
     ],
 )
 @TANKOPEDIA_FILES
-def test_2_blitz_data_tankopedia_update(
+def test_2_blitzdata_tankopedia_update(
     tmp_path: Path, datafiles: Path, args: list[str], total: int, added: int
 ) -> None:
     OUTFILE: str = f"{tmp_path / TANKOPEDIA_OLD}"
@@ -181,7 +181,7 @@ def test_2_blitz_data_tankopedia_update(
     ), f"incorrect number of tanks: tankopedia {cmd}"
 
 
-def test_3_blitz_data_tankopedia_wg(tmp_path: Path) -> None:
+def test_3_blitzdata_tankopedia_wg(tmp_path: Path) -> None:
     OUTFILE: str = f"{tmp_path / 'tankopedia-exported.json'}"
 
     result = CliRunner().invoke(app, ["tankopedia", "--outfile", OUTFILE, "wg"])
@@ -210,7 +210,7 @@ def test_3_blitz_data_tankopedia_wg(tmp_path: Path) -> None:
     ],
 )
 @MAPS_FILES
-def test_4_blitz_data_maps(
+def test_4_blitzdata_maps(
     tmp_path: Path, datafiles: Path, args: list[str], added: int, updated: int
 ) -> None:
     OUTFILE: str = f'{tmp_path / "test_4_maps.json"}'
@@ -237,7 +237,7 @@ def test_4_blitz_data_maps(
     ],
 )
 @MAPS_FILES
-def test_5_blitz_data_maps_update(
+def test_5_blitzdata_maps_update(
     tmp_path: Path, datafiles: Path, args: list[str], total: int, added: int
 ) -> None:
     OUTFILE: str = f"{tmp_path / MAPS_OLD}"
