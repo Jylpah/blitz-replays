@@ -15,7 +15,7 @@ import configparser
 
 from pyutils.utils import get_temp_filename, set_config, coro
 from pyutils import AsyncTyper
-from blitzutils import Map, Maps, Region, MapMode, MapModeStr
+from blitzmodels import Map, Maps, Region, MapMode, MapModeStr
 from dvplc import decode_dvpl, decode_dvpl_file
 
 logger = logging.getLogger()

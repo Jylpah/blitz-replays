@@ -16,7 +16,7 @@ from icecream import ic  # type: ignore
 
 from pyutils import MultilevelFormatter
 from pyutils.utils import set_config
-from blitzutils import get_config_file
+from blitzmodels import get_config_file
 
 from blitzreplays.metadata import tankopedia, maps
 

@@ -12,7 +12,7 @@ from alive_progress import alive_bar  # type: ignore
 
 from pyutils import FileQueue, EventCounter, AsyncTyper
 from pyutils.utils import coro
-from blitzutils import (
+from blitzmodels import (
     WoTinspector,
     WGApiWoTBlitzTankopedia,
     ReplayJSON,

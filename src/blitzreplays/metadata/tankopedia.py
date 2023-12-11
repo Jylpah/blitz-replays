@@ -19,7 +19,7 @@ import yaml
 import sys
 import typer
 
-from blitzutils import (
+from blitzmodels import (
     Region,
     EnumNation,
     EnumVehicleTier,

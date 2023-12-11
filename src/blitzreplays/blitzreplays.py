@@ -14,7 +14,7 @@ from result import Result, Ok, Err, OkErr, is_ok, is_err
 
 from pyutils import MultilevelFormatter
 from pyutils.utils import set_config
-from blitzutils import get_config_file, WGApiWoTBlitzTankopedia, Maps
+from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
 
 path.insert(0, str(Path(__file__).parent.parent.resolve()))
 

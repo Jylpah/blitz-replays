@@ -22,7 +22,7 @@ message = logger.warning
 verbose = logger.info
 debug = logger.debug
 
-from blitzutils import (
+from blitzmodels import (
     Tank,
     EnumNation,
     EnumVehicleTier,
@@ -33,7 +33,7 @@ from blitzutils import (
     MapMode,
     MapModeStr,
 )
-from blitzutils import WGApiWoTBlitzTankopedia
+from blitzmodels import WGApiWoTBlitzTankopedia
 
 
 ########################################################

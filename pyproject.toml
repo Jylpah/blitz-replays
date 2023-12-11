@@ -27,7 +27,7 @@ dependencies = [
     "sortedcollections>=2.1.0",
     "xmltodict>=0.13.0",
     "typer>=0.9.0",
-    "blitz-utils @ git+https://github.com/Jylpah/blitz-utils.git@dev-pydantic-v2",
+    "blitz-models @ git+https://github.com/Jylpah/blitz-models.git",
     "dvplc @ git+https://github.com/Jylpah/dvplc.git",
 ]
 
@@ -47,7 +47,6 @@ dev = [
     "types-PyYAML>=6.0.12.10",
 
     # "pyutils[dev] @ git+https://github.com/Jylpah/pyutils.git@dev",
-    # "blitz-utils[dev] @ git+https://github.com/Jylpah/blitz-utils.git",
 ]
 
 
