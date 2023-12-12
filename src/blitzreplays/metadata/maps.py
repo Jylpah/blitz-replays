@@ -1,5 +1,3 @@
-from asyncio import Task
-from datetime import datetime
 from typing import Optional, Literal, Any, cast, Annotated
 
 # from typing_extensions import Annotated
@@ -7,13 +5,12 @@ from pathlib import Path
 from os import unlink
 from re import Pattern, Match, compile
 
-import sys
 import yaml
 import logging
 import typer
 import configparser
 
-from pyutils.utils import get_temp_filename, set_config, coro
+from pyutils.utils import get_temp_filename, set_config
 from pyutils import AsyncTyper
 from blitzmodels import Map, Maps, Region, MapMode, MapModeStr
 from dvplc import decode_dvpl, decode_dvpl_file
@@ -74,15 +71,6 @@ def maps(
 @typer_app.async_command()
 async def app(
     ctx: typer.Context,
-    # wg_app_id: Annotated[
-    #     Optional[str], typer.Option(show_default=False, help="WG app ID")
-    # ] = None,
-    # wg_region: Annotated[
-    #     Optional[Region],
-    #     typer.Option(
-    #         help=f"WG API region", metavar="[eu|asia|com]", show_default=False
-    #     ),
-    # ] = None,
     blitz_app_dir: Annotated[
         Optional[Path],
         typer.Argument(
