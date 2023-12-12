@@ -1,27 +1,43 @@
 #!/usr/bin/env python3
 
-import click
+import typer
+
 from asyncio import run
+from typing import Annotated, Optional
 import logging
 from pathlib import Path
 from configparser import ConfigParser
 import configparser
 from sys import path, exit
 from os.path import dirname, realpath
+from result import Result, Ok, Err, OkErr, is_ok, is_err
 
-from pyutils import MultilevelFormatter
+from pyutils import MultilevelFormatter, AsyncTyper
 from pyutils.utils import set_config
-from blitzutils import get_config_file
+from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
 
-# path.insert(0, str(Path(__file__).parent.parent.resolve()))
+path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-from .replays import upload
+from blitzreplays.replays import upload
 
 logger = logging.getLogger()
 error = logger.error
 message = logger.warning
 verbose = logger.info
 debug = logger.debug
+
+##############################################
+#
+## Typer CLI arg parsing
+#
+##############################################
+
+app = AsyncTyper()
+app.async_command(
+    name="upload",
+)(upload.upload)
+# app.add_typer(analyze.typer_app, name="analyze")
+
 
 ##############################################
 #
@@ -36,71 +52,72 @@ WI_WORKERS: int = 1
 TANKOPEDIA: str = "tanks.json"
 MAPS: str = "maps.json"
 
+
 ##############################################
 #
-## cli_xxx()
+## cli()
 #
 ##############################################
 
 
-@click.group(help="CLI tool upload WoT Blitz Replays to WoTinspector.com")
-@click.option(
-    "--normal",
-    "LOG_LEVEL",
-    flag_value=logging.WARNING,
-    default=True,
-    help="default verbosity",
-)
-@click.option("--verbose", "LOG_LEVEL", flag_value=logging.INFO, help="verbose logging")
-@click.option("--debug", "LOG_LEVEL", flag_value=logging.DEBUG, help="debug logging")
-@click.option(
-    "--config",
-    "config_file",
-    type=click.Path(),
-    default=CONFIG_FILE,
-    help=f"read config from file (default: {CONFIG_FILE})",
-)
-@click.option(
-    "--log", type=click.Path(path_type=Path), default=None, help="log to FILE"
-)
-@click.option(
-    "--wi-rate-limit",
-    type=float,
-    default=None,
-    help="rate-limit for WoTinspector.com",
-)
-@click.option(
-    "--wi-auth_token",
-    type=str,
-    default=None,
-    help="authentication token for WoTinsepctor.com",
-)
-@click.option(
-    "--tankopedia",
-    type=str,
-    default=None,
-    help="tankopedia JSON file",
-)
-@click.option(
-    "--maps",
-    type=str,
-    default=None,
-    help="maps JSON file",
-)
-@click.pass_context
+@app.callback()
 def cli(
-    ctx: click.Context,
-    LOG_LEVEL: int = logging.WARNING,
-    config_file: Path | None = CONFIG_FILE,
-    log: Path | None = None,
-    wi_rate_limit: float | None = None,
-    wi_auth_token: str | None = None,
-    tankopedia: str | None = None,
-    maps: str | None = None,
+    ctx: typer.Context,
+    print_verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            show_default=False,
+            metavar="",
+            help="verbose logging",
+        ),
+    ] = False,
+    print_debug: Annotated[
+        bool,
+        typer.Option(
+            "--debug",
+            show_default=False,
+            metavar="",
+            help="debug logging",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(show_default=False, help="Overwrite instead of updating data"),
+    ] = False,
+    config_file: Annotated[
+        Optional[Path],
+        typer.Option("--config", help=f"read config from FILE", metavar="FILE"),
+    ] = CONFIG_FILE,
+    log: Annotated[
+        Optional[Path], typer.Option(help="log to FILE", metavar="FILE")
+    ] = None,
+    # wi_rate_limit: Annotated[
+    #     Optional[float], typer.Option(help="rate-limit for WoTinspector.com")
+    # ] = None,
+    # wi_auth_token: Annotated[
+    #     Optional[str], typer.Option(help="authentication token for WoTinsepctor.com")
+    # ] = None,
+    tankopedia_fn: Annotated[
+        Optional[Path],
+        typer.Option("--tankopedia", help="tankopedia JSON file", metavar="FILE"),
+    ] = None,
+    maps_fn: Annotated[
+        Optional[Path],
+        typer.Option("--maps", help="maps JSON file", metavar="FILE"),
+    ] = None,
 ) -> None:
-    """CLI app to upload WoT Blitz replays"""
+    """
+    CLI app to upload WoT Blitz replays
+    """
     global logger, error, debug, verbose, message
 
+    LOG_LEVEL: int = logging.WARNING
+    if print_verbose:
+        LOG_LEVEL = logging.INFO
+    elif print_debug:
+        LOG_LEVEL = logging.DEBUG
     MultilevelFormatter.setDefaults(logger, log_file=log)
     logger.setLevel(LOG_LEVEL)
     ctx.ensure_object(dict)
@@ -109,34 +126,63 @@ def cli(
 
     if config_file is not None:
         try:
+            debug("reading config from: %s", str(config_file))
             config.read(config_file)
         except configparser.Error as err:
             error(f"could not read config file {config_file}: {err}")
-            exit(1)
+            raise typer.Exit(code=1)
 
-    set_config(config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit", wi_rate_limit)
-    set_config(config, WI_AUTH_TOKEN, "WOTINSPECTOR", "auth_token", wi_auth_token)
+    # set_config(config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit", wi_rate_limit)
+    # set_config(config, WI_AUTH_TOKEN, "WOTINSPECTOR", "auth_token", wi_auth_token)
 
-    set_config(
-        config,
-        TANKOPEDIA,
-        "METADATA",
-        "tankopedia_json",
-        tankopedia,
-    )
-    set_config(
-        config,
-        MAPS,
-        "METADATA",
-        "maps_json",
-        maps,
-    )
+    tankopedia: WGApiWoTBlitzTankopedia | None
+    try:
+        tankopedia_fn = Path(
+            set_config(
+                config,
+                TANKOPEDIA,
+                "METADATA",
+                "tankopedia_json",
+                str(tankopedia_fn) if tankopedia_fn else None,
+            )
+        )
+        debug("tankopedia file: %s", str(tankopedia_fn))
+
+        if (
+            tankopedia := run(
+                WGApiWoTBlitzTankopedia.open_json(tankopedia_fn, exceptions=True)
+            )
+        ) is None:
+            error(f"could not parse tankopedia from {tankopedia_fn}")
+            raise typer.Exit(code=2)
+        ctx.obj["tankopedia"] = tankopedia
+    except Exception as err:
+        error(f"error reading Tankopedia from {tankopedia_fn}: {err}")
+        raise typer.Exit(code=3)
+
+    maps: Maps | None
+    try:
+        maps_fn = Path(
+            set_config(
+                config,
+                MAPS,
+                "METADATA",
+                "maps_json",
+                str(maps_fn) if maps_fn else None,
+            )
+        )
+        debug("maps file: %s", str(maps_fn))
+        if (maps := run(Maps.open_json(maps_fn, exceptions=True))) is None:
+            error(f"could not parse maps from {maps_fn}")
+            raise typer.Exit(code=4)
+        ctx.obj["maps"] = maps
+    except Exception as err:
+        error(f"error reading maps from {maps_fn}: {err}")
+        raise typer.Exit(code=5)
 
     ctx.obj["config"] = config
+    ctx.obj["force"] = force
 
-
-# Add sub commands
-cli.add_command(upload.upload)  # type: ignore
 
 ########################################################
 #
@@ -145,9 +191,9 @@ cli.add_command(upload.upload)  # type: ignore
 ########################################################
 
 
-def cli_main():
-    cli(obj={})
+# def cli_main():
+#     cli(obj={})
 
 
 if __name__ == "__main__":
-    cli_main()
+    app()
