@@ -1,24 +1,17 @@
 import typer
 from typing import Annotated, Optional, List
-from asyncio import run, Task, create_task, wait
 import logging
 from pathlib import Path
 from configparser import ConfigParser
-import sys
-from aiostream import stream, async_
-from aiostream.core import Stream
-
 from alive_progress import alive_bar  # type: ignore
 
 from pyutils import FileQueue, EventCounter, AsyncTyper
-from pyutils.utils import coro
+from pyutils.utils import set_config
 from blitzmodels import (
-    WoTinspector,
     WGApiWoTBlitzTankopedia,
-    ReplayJSON,
     Maps,
-    get_config_file,
 )
+from blitzmodels.wotinspector.wi_apiv2 import WoTinspector, Replay
 
 typer_app = AsyncTyper()
 
@@ -38,7 +31,7 @@ debug = logger.debug
 # LOG = _PKG_NAME + ".log"
 # CONFIG_FILE: Path | None = get_config_file()
 
-WI_RATE_LIMIT: float = 20 / 3600
+WI_RATE_LIMIT: float = 1.0
 WI_AUTH_TOKEN: str | None = None
 WI_WORKERS: int = 3
 
@@ -49,20 +42,23 @@ WI_WORKERS: int = 3
 ##############################################
 
 
+def callback_paths(value: Optional[list[Path]]) -> list[Path]:
+    return value if value is not None else []
+
+
 @typer_app.async_command()
 async def upload(
     ctx: typer.Context,
-    fetch_json: Annotated[
+    force: Annotated[
         Optional[bool],
         typer.Option(
-            "--json",
+            "--force",
             show_default=False,
-            help="fetch replay JSON file for replay analysis. Default is False",
+            is_flag=True,
+            flag_value=True,
+            help="force upload even JSON file exists",
         ),
-    ] = None,
-    uploaded_by: Annotated[
-        int, typer.Option(help="WG account_id of the uploader (you)")
-    ] = 0,
+    ] = False,
     private: Annotated[
         Optional[bool],
         typer.Option(
@@ -70,49 +66,51 @@ async def upload(
             help="upload replays as private without listing those publicly (default=False)",
         ),
     ] = None,
-    replays: Annotated[List[Path], typer.Argument(help="replays to upload")] = list(),
+    wi_rate_limit: Annotated[
+        Optional[float], typer.Option(help="rate-limit for WoTinspector.com")
+    ] = None,
+    wi_auth_token: Annotated[
+        Optional[str], typer.Option(help="authentication token for WoTinsepctor.com")
+    ] = None,
+    replays: List[Path] = typer.Argument(
+        help="replays to upload", callback=callback_paths
+    ),
 ) -> int:
     """
     upload replays to https://WoTinspector.com
     """
     tankopedia: WGApiWoTBlitzTankopedia
     maps: Maps
-    wi_rate_limit: float
-    wi_auth_token: str | None
+    # wi_rate_limit: float
+    # wi_auth_token: str | None
     try:
         config: ConfigParser = ctx.obj["config"]
+
+        wi_rate_limit = set_config(
+            config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit_upload", wi_rate_limit
+        )
         configWI = config["WOTINSPECTOR"]
-        if not isinstance(
-            wi_rate_limit := configWI.getfloat("rate_limit", fallback=WI_RATE_LIMIT),
-            float,
-        ):
-            raise ValueError("could not set WI rate limit")
         wi_auth_token = configWI.get("auth_token", fallback=WI_AUTH_TOKEN)
         if not (wi_auth_token is None or isinstance(wi_auth_token, str)):
             raise ValueError("could not set WI authentication token")
-        debug(f"wi_rate_limit={wi_rate_limit}, wi_auth_token={wi_auth_token}")
-
-        if fetch_json is None:
-            fetch_json = configWI.getboolean("fetch_json", False)
-        debug(f"fetch_json={fetch_json}")
+        debug(
+            f"wi_rate_limit={wi_rate_limit}({type(wi_rate_limit)}), wi_auth_token={wi_auth_token}"
+        )
 
         if private is None:
             private = configWI.getboolean("upload_private", False)
         debug(f"private={private}")
-        if uploaded_by == 0:
-            uploaded_by = config.getint(section="WG", option="wg_id", fallback=0)
-        debug(f"uploaded_by={uploaded_by}")
 
         tankopedia = ctx.obj["tankopedia"]
         maps = ctx.obj["maps"]
 
     except KeyError as err:
         error(f"could not read all the params: {err}")
-        typer.Exit(code=1)
+        typer.Exit(code=6)
         assert False, "trick Mypy..."
     except ValueError as err:
         error(f"could not set configuration option: {err}")
-        typer.Exit(code=2)
+        typer.Exit(code=7)
         assert False, "trick Mypy..."
 
     WI = WoTinspector(rate_limit=wi_rate_limit, auth_token=wi_auth_token)
@@ -126,34 +124,28 @@ async def upload(
         ) as bar:
             async for fn in replayQ:
                 try:
-                    if (fn.parent / (fn.name + ".json")).is_file():
+                    if not force and (fn.parent / (fn.name + ".json")).is_file():
                         message(f"skipped {fn.name}: replay already uploaded")
                         stats.log("skipped")
                         continue
 
-                    replay_id: str | None = None
-                    replay_json: ReplayJSON | None = None
-                    replay_id, replay_json = await WI.post_replay(
-                        replay=fn,
-                        uploaded_by=uploaded_by,
-                        tankopedia=tankopedia,
-                        maps=maps,
-                        fetch_json=fetch_json,
-                        priv=private,
-                    )
-                    debug(f"replay_id=%s, replay_json=%s", replay_id, replay_json)
-
-                    if replay_id is None or replay_json is None:
+                    replay: Replay | None = None
+                    if (
+                        replay := await WI.post_replay(
+                            replay=fn,
+                            tankopedia=tankopedia,
+                            maps=maps,
+                            priv=private,
+                        )
+                    ) is None:
                         raise ValueError(f"could not upload replay: {fn}")
-                    message(f"posted {fn.name}: {replay_json.data.summary.title}")
+                    message(f"posted {fn.name}: {replay.title}")
                     stats.log("uploaded")
-                    if fetch_json:
-                        if (
-                            _ := await replay_json.save_json(
-                                fn.parent / (fn.name + ".json")
-                            )
-                        ) > 0:
-                            stats.log("JSON saved")
+                    # save JSON
+                    if (
+                        _ := await replay.save_json(fn.parent / (fn.name + ".json"))
+                    ) > 0:
+                        stats.log("JSON saved")
                 except KeyboardInterrupt:
                     message("cancelled")
                     raise
@@ -165,6 +157,7 @@ async def upload(
 
     except Exception as err:
         error(f"{err}")
+        typer.Exit(code=3)
     finally:
         await WI.close()
 

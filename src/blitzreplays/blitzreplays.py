@@ -12,7 +12,7 @@ from sys import path, exit
 from os.path import dirname, realpath
 from result import Result, Ok, Err, OkErr, is_ok, is_err
 
-from pyutils import MultilevelFormatter
+from pyutils import MultilevelFormatter, AsyncTyper
 from pyutils.utils import set_config
 from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
 
@@ -32,8 +32,10 @@ debug = logger.debug
 #
 ##############################################
 
-app = typer.Typer()
-# app.add_typer(upload.typer_app, name="upload")
+app = AsyncTyper()
+app.async_command(
+    name="upload",
+)(upload.upload)
 # app.add_typer(analyze.typer_app, name="analyze")
 
 
@@ -91,12 +93,12 @@ def cli(
     log: Annotated[
         Optional[Path], typer.Option(help="log to FILE", metavar="FILE")
     ] = None,
-    wi_rate_limit: Annotated[
-        Optional[float], typer.Option(help="rate-limit for WoTinspector.com")
-    ] = None,
-    wi_auth_token: Annotated[
-        Optional[str], typer.Option(help="authentication token for WoTinsepctor.com")
-    ] = None,
+    # wi_rate_limit: Annotated[
+    #     Optional[float], typer.Option(help="rate-limit for WoTinspector.com")
+    # ] = None,
+    # wi_auth_token: Annotated[
+    #     Optional[str], typer.Option(help="authentication token for WoTinsepctor.com")
+    # ] = None,
     tankopedia_fn: Annotated[
         Optional[Path],
         typer.Option("--tankopedia", help="tankopedia JSON file", metavar="FILE"),
@@ -124,13 +126,14 @@ def cli(
 
     if config_file is not None:
         try:
+            debug("reading config from: %s", str(config_file))
             config.read(config_file)
         except configparser.Error as err:
             error(f"could not read config file {config_file}: {err}")
             raise typer.Exit(code=1)
 
-    set_config(config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit", wi_rate_limit)
-    set_config(config, WI_AUTH_TOKEN, "WOTINSPECTOR", "auth_token", wi_auth_token)
+    # set_config(config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit", wi_rate_limit)
+    # set_config(config, WI_AUTH_TOKEN, "WOTINSPECTOR", "auth_token", wi_auth_token)
 
     tankopedia: WGApiWoTBlitzTankopedia | None
     try:
@@ -140,9 +143,11 @@ def cli(
                 TANKOPEDIA,
                 "METADATA",
                 "tankopedia_json",
-                str(tankopedia_fn),
+                str(tankopedia_fn) if tankopedia_fn else None,
             )
         )
+        debug("tankopedia file: %s", str(tankopedia_fn))
+
         if (
             tankopedia := run(
                 WGApiWoTBlitzTankopedia.open_json(tankopedia_fn, exceptions=True)
@@ -163,9 +168,10 @@ def cli(
                 MAPS,
                 "METADATA",
                 "maps_json",
-                str(maps_fn),
+                str(maps_fn) if maps_fn else None,
             )
         )
+        debug("maps file: %s", str(maps_fn))
         if (maps := run(Maps.open_json(maps_fn, exceptions=True))) is None:
             error(f"could not parse maps from {maps_fn}")
             raise typer.Exit(code=4)
