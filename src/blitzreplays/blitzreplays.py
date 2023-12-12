@@ -36,7 +36,6 @@ app = AsyncTyper()
 app.async_command(
     name="upload",
 )(upload.upload)
-# app.add_typer(analyze.typer_app, name="analyze")
 
 
 ##############################################
@@ -46,8 +45,6 @@ app.async_command(
 ##############################################
 
 CONFIG_FILE: Path | None = get_config_file()
-WI_RATE_LIMIT: float = 20 / 3600
-WI_AUTH_TOKEN: str | None = None
 WI_WORKERS: int = 1
 TANKOPEDIA: str = "tanks.json"
 MAPS: str = "maps.json"
@@ -93,12 +90,6 @@ def cli(
     log: Annotated[
         Optional[Path], typer.Option(help="log to FILE", metavar="FILE")
     ] = None,
-    # wi_rate_limit: Annotated[
-    #     Optional[float], typer.Option(help="rate-limit for WoTinspector.com")
-    # ] = None,
-    # wi_auth_token: Annotated[
-    #     Optional[str], typer.Option(help="authentication token for WoTinsepctor.com")
-    # ] = None,
     tankopedia_fn: Annotated[
         Optional[Path],
         typer.Option("--tankopedia", help="tankopedia JSON file", metavar="FILE"),
@@ -131,9 +122,6 @@ def cli(
         except configparser.Error as err:
             error(f"could not read config file {config_file}: {err}")
             raise typer.Exit(code=1)
-
-    # set_config(config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit", wi_rate_limit)
-    # set_config(config, WI_AUTH_TOKEN, "WOTINSPECTOR", "auth_token", wi_auth_token)
 
     tankopedia: WGApiWoTBlitzTankopedia | None
     try:

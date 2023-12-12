@@ -27,10 +27,6 @@ debug = logger.debug
 #
 ##############################################
 
-# _PKG_NAME = "blitz-replays"
-# LOG = _PKG_NAME + ".log"
-# CONFIG_FILE: Path | None = get_config_file()
-
 WI_RATE_LIMIT: float = 1.0
 WI_AUTH_TOKEN: str | None = None
 WI_WORKERS: int = 3
@@ -81,8 +77,6 @@ async def upload(
     """
     tankopedia: WGApiWoTBlitzTankopedia
     maps: Maps
-    # wi_rate_limit: float
-    # wi_auth_token: str | None
     try:
         config: ConfigParser = ctx.obj["config"]
 
@@ -90,7 +84,8 @@ async def upload(
             config, WI_RATE_LIMIT, "WOTINSPECTOR", "rate_limit_upload", wi_rate_limit
         )
         configWI = config["WOTINSPECTOR"]
-        wi_auth_token = configWI.get("auth_token", fallback=WI_AUTH_TOKEN)
+        if wi_auth_token is None:
+            wi_auth_token = configWI.get("auth_token", fallback=WI_AUTH_TOKEN)
         if not (wi_auth_token is None or isinstance(wi_auth_token, str)):
             raise ValueError("could not set WI authentication token")
         debug(
@@ -157,7 +152,7 @@ async def upload(
 
     except Exception as err:
         error(f"{err}")
-        typer.Exit(code=3)
+        typer.Exit(code=8)
     finally:
         await WI.close()
 
