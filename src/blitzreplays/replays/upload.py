@@ -13,7 +13,7 @@ from blitzmodels import (
 )
 from blitzmodels.wotinspector.wi_apiv2 import WoTinspector, Replay
 
-typer_app = AsyncTyper()
+app = AsyncTyper()
 
 logger = logging.getLogger()
 error = logger.error
@@ -42,7 +42,7 @@ def callback_paths(value: Optional[list[Path]]) -> list[Path]:
     return value if value is not None else []
 
 
-@typer_app.async_command()
+@app.async_command()
 async def upload(
     ctx: typer.Context,
     force: Annotated[
@@ -168,4 +168,4 @@ async def upload(
 ########################################################
 
 if __name__ == "__main__":
-    typer_app()
+    app()
