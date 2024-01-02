@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import typer
-
 from asyncio import run
 from typing import Annotated, Optional
 import logging
