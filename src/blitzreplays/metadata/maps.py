@@ -1,4 +1,4 @@
-from typing import Optional, Literal, Any, cast, Annotated
+from typing import Optional, Annotated
 
 # from typing_extensions import Annotated
 from pathlib import Path
@@ -12,8 +12,8 @@ import configparser
 
 from pyutils.utils import get_temp_filename, set_config
 from pyutils import AsyncTyper
-from blitzmodels import Map, Maps, Region, MapMode, MapModeStr
-from dvplc import decode_dvpl, decode_dvpl_file
+from blitzmodels import Map, Maps, Region, MapModeStr
+from dvplc import decode_dvpl_file
 
 logger = logging.getLogger()
 error = logger.error
@@ -42,7 +42,7 @@ def maps(
     # force: bool = False,
     outfile: Annotated[
         Optional[str],
-        typer.Option(help=f"Write maps to FILE", metavar="FILE"),
+        typer.Option(help="Write maps to FILE", metavar="FILE"),
     ] = None,
 ) -> None:
     """extract maps data into a JSON file"""
@@ -135,7 +135,7 @@ async def app(
                 raise IOError(f"could not decode DVPL file: {filename}")
             filename = temp_fn
 
-        debug(f"Opening file: %s for reading map strings", str(filename))
+        debug("Opening file: %s for reading map strings", str(filename))
         with open(filename, "r", encoding="utf8") as strings_file:
             user_strs = yaml.safe_load(strings_file)
     except:

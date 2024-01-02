@@ -1,37 +1,31 @@
 import configparser
-from datetime import datetime
 from typing import Optional, Any, Annotated
 
 # from typing_extensions import Annotated
-from asyncio import Task, create_task, gather, run
-from os.path import isfile
+from asyncio import Task, create_task, gather
 from os import unlink
 from pathlib import Path
-from re import Pattern, Match, compile
-from sortedcollections import SortedDict  # type: ignore
-from pydantic import ValidationError
+from re import Pattern, compile
 from typer import Option, Argument, Exit, Context
 import aiofiles
 import logging
 import xmltodict  # type: ignore
 import yaml
 import sys
+from result import Result
 
 
 from blitzmodels import (
     Region,
     EnumNation,
     EnumVehicleTier,
-    EnumVehicleTypeInt,
     EnumVehicleTypeStr,
     Tank,
     WGApiWoTBlitzTankopedia,
     WGApi,
-    WoTBlitzTankString,
-    add_args_wg,
 )
 from dvplc import decode_dvpl, decode_dvpl_file
-from pyutils.utils import get_temp_filename, coro, set_config
+from pyutils.utils import get_temp_filename, set_config
 from pyutils import AsyncTyper
 
 typer_app = AsyncTyper()
@@ -82,7 +76,7 @@ def tankopedia(
     # force: bool = False,
     outfile: Annotated[
         Optional[str],
-        Option(help=f"Write Tankopedia to FILE", metavar="FILE"),
+        Option(help="Write Tankopedia to FILE", metavar="FILE"),
     ] = None,
 ) -> None:
     """
@@ -114,7 +108,7 @@ async def app(
     ] = None,
     wg_region: Annotated[
         Optional[Region],
-        Option(help=f"WG API region", metavar="[eu|asia|com]", show_default=False),
+        Option(help="WG API region", metavar="[eu|asia|com]", show_default=False),
     ] = None,
     blitz_app_dir: Annotated[
         Optional[Path],
@@ -305,7 +299,7 @@ async def update_tankopedia(
 
     added: set[int]
     updated: set[int]
-    (added, updated) = tankopedia_old.update(tankopedia)
+    (added, updated) = tankopedia_old.update_tanks(tankopedia)
 
     if await tankopedia_old.save_json(outfile) > 0:
         if logger.level < logging.WARNING:
@@ -352,7 +346,7 @@ async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[Tank]:
     list_xml: Path = (
         blitz_app_dir / BLITZAPP_VEHICLES_DIR / nation.name / BLITZAPP_VEHICLE_FILE
     )
-    tankopedia: dict[str, Any]
+    tankopedia: dict[str, Any] = dict()
     if list_xml.is_file():
         debug(f"Opening file: {list_xml} nation={nation}")
         async with aiofiles.open(list_xml, "r", encoding="utf8") as f:
@@ -360,8 +354,8 @@ async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[Tank]:
     elif (list_xml := list_xml.parent / (list_xml.name + ".dvpl")).is_file():
         debug(f"Opening file (DVPL): {list_xml} nation={nation}")
         async with aiofiles.open(list_xml, "rb") as f:
-            data, _ = decode_dvpl(await f.read())
-            tankopedia = xmltodict.parse(data)
+            res: Result[bytes, str] = decode_dvpl(await f.read())
+            tankopedia = xmltodict.parse(res.unwrap())
     else:
         error(f"cannot open tank file for nation={nation}: {list_xml}")
         return tanks
@@ -386,7 +380,7 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
                 raise IOError(f"could not decode DVPL file: {filename}")
             filename = temp_fn
 
-        debug(f"Opening file: %s for reading UserStrings", str(filename))
+        debug("Opening file: %s for reading UserStrings", str(filename))
         with open(filename, "r", encoding="utf8") as strings_file:
             user_strs = yaml.safe_load(strings_file)
     except:

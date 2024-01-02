@@ -8,9 +8,7 @@ import logging
 from pathlib import Path
 from configparser import ConfigParser
 import configparser
-from sys import path, exit
-from os.path import dirname, realpath
-from result import Result, Ok, Err, OkErr, is_ok, is_err
+from sys import path
 
 from pyutils import MultilevelFormatter, AsyncTyper
 from pyutils.utils import set_config
@@ -85,7 +83,7 @@ def cli(
     ] = False,
     config_file: Annotated[
         Optional[Path],
-        typer.Option("--config", help=f"read config from FILE", metavar="FILE"),
+        typer.Option("--config", help="read config from FILE", metavar="FILE"),
     ] = CONFIG_FILE,
     log: Annotated[
         Optional[Path], typer.Option(help="log to FILE", metavar="FILE")
