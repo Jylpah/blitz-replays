@@ -98,7 +98,7 @@ reportInvalidStringEscapeSequence = false
 
 [tool.pytest.ini_options]
 minversion = "7.4"
-addopts = ["-v", "--cov=src", "--import-mode=importlib"]
+addopts = ["-v", "--cov=src"]
 testpaths = ["tests"]
 pythonpath = "src" # avoid import path append in test files
 filterwarnings = [
