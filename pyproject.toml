@@ -84,7 +84,6 @@ warn_untyped_fields = true
 [tool.ruff]
 # line-length = 88
 include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
-
 indent-width = 4
 extend-include = ["*.ipynb"]
 extend-exclude = [".venv", ".vscode" ] 
