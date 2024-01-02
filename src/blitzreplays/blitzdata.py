@@ -4,7 +4,7 @@ import typer
 
 # from sys import path
 from pathlib import Path
-from typing import Optional, Any, Annotated
+from typing import Optional, Annotated
 from configparser import ConfigParser
 import sys
 from os.path import dirname, realpath
@@ -12,10 +12,8 @@ from os.path import dirname, realpath
 sys.path.insert(0, dirname(dirname(realpath(__file__))))
 import configparser
 import logging
-from icecream import ic  # type: ignore
 
 from pyutils import MultilevelFormatter
-from pyutils.utils import set_config
 from blitzmodels import get_config_file
 
 from blitzreplays.metadata import tankopedia, maps
@@ -63,7 +61,7 @@ def cli(
     ] = False,
     config_file: Annotated[
         Optional[Path],
-        typer.Option("--config", help=f"read config from FILE", metavar="FILE"),
+        typer.Option("--config", help="read config from FILE", metavar="FILE"),
     ] = CONFIG_FILE,
     log: Annotated[
         Optional[Path], typer.Option(help="log to FILE", metavar="FILE")

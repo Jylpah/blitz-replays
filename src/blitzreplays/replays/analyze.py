@@ -1,13 +1,7 @@
 import logging
-from typing import Optional, Literal, Any, Annotated, List
-from typer import Context, Exit, Option, Argument
-from pyutils.utils import set_config
+from typing import Optional, Annotated, List
+from typer import Context, Option
 from pyutils import AsyncTyper
-from blitzmodels import (
-    WGApiWoTBlitzTankopedia,
-    Maps,
-)
-from blitzmodels.wotinspector.wi_apiv2 import WoTinspector, Replay
 
 app = AsyncTyper()
 

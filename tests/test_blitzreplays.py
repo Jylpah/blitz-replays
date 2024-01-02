@@ -1,18 +1,9 @@
-import asyncio
-import sys
 import pytest  # type: ignore
-from typing import Sequence
-import subprocess
-from os.path import dirname, realpath, join as pjoin, basename
+from os.path import dirname, realpath
 from pathlib import Path
-import aiofiles
 from typer.testing import CliRunner
 from click.testing import Result
-from pydantic import BaseModel
-from random import shuffle
 import logging
-
-# sys.path.insert(0, str(Path(__file__).parent.parent.resolve() / "src"))
 
 from blitzreplays.blitzreplays import app
 
@@ -21,8 +12,6 @@ error = logger.error
 message = logger.warning
 verbose = logger.info
 debug = logger.debug
-
-from blitzmodels import Maps, WGApiWoTBlitzTankopedia
 
 
 ########################################################

@@ -1,38 +1,31 @@
 import configparser
-from datetime import datetime
 from typing import Optional, Any, Annotated
 
 # from typing_extensions import Annotated
-from asyncio import Task, create_task, gather, run
-from os.path import isfile
+from asyncio import Task, create_task, gather
 from os import unlink
 from pathlib import Path
-from re import Pattern, Match, compile
-from sortedcollections import SortedDict  # type: ignore
-from pydantic import ValidationError
+from re import Pattern, compile
+from typer import Option, Argument, Exit, Context
 import aiofiles
 import logging
 import xmltodict  # type: ignore
 import yaml
-
-# import click
 import sys
-import typer
+from result import Result
+
 
 from blitzmodels import (
     Region,
     EnumNation,
     EnumVehicleTier,
-    EnumVehicleTypeInt,
     EnumVehicleTypeStr,
     Tank,
     WGApiWoTBlitzTankopedia,
     WGApi,
-    WoTBlitzTankString,
-    add_args_wg,
 )
 from dvplc import decode_dvpl, decode_dvpl_file
-from pyutils.utils import get_temp_filename, coro, set_config
+from pyutils.utils import get_temp_filename, set_config
 from pyutils import AsyncTyper
 
 typer_app = AsyncTyper()
@@ -79,11 +72,11 @@ BLITZAPP_VEHICLE_FILE: str = "list.xml"
 ## app.callback() ??
 @typer_app.callback()
 def tankopedia(
-    ctx: typer.Context,
+    ctx: Context,
     # force: bool = False,
     outfile: Annotated[
         Optional[str],
-        typer.Option(help=f"Write Tankopedia to FILE", metavar="FILE"),
+        Option(help="Write Tankopedia to FILE", metavar="FILE"),
     ] = None,
 ) -> None:
     """
@@ -109,19 +102,17 @@ def tankopedia(
 
 @typer_app.async_command()
 async def app(
-    ctx: typer.Context,
+    ctx: Context,
     wg_app_id: Annotated[
-        Optional[str], typer.Option(show_default=False, help="WG app ID")
+        Optional[str], Option(show_default=False, help="WG app ID")
     ] = None,
     wg_region: Annotated[
         Optional[Region],
-        typer.Option(
-            help=f"WG API region", metavar="[eu|asia|com]", show_default=False
-        ),
+        Option(help="WG API region", metavar="[eu|asia|com]", show_default=False),
     ] = None,
     blitz_app_dir: Annotated[
         Optional[Path],
-        typer.Argument(
+        Argument(
             show_default=False,
             file_okay=False,
             help="Blitz game files directory",
@@ -148,10 +139,10 @@ async def app(
             blitz_app_dir = Path(config.get("METADATA", "blitz_app_dir"))
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        typer.Exit(code=1)
+        raise Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        typer.Exit(code=1)
+        raise Exit(code=1)
 
     assert (
         blitz_app_dir is not None
@@ -221,10 +212,10 @@ async def app(
 
 @typer_app.async_command()
 async def wg(
-    ctx: typer.Context,
-    wg_app_id: Annotated[Optional[str], typer.Option(help="WG app ID")] = None,
+    ctx: Context,
+    wg_app_id: Annotated[Optional[str], Option(help="WG app ID")] = None,
     wg_region: Annotated[
-        Optional[Region], typer.Option(help=f"WG API region (default: {WG_REGION})")
+        Optional[Region], Option(help=f"WG API region (default: {WG_REGION})")
     ] = None,
 ):
     """
@@ -245,11 +236,13 @@ async def wg(
 
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        typer.Exit(code=1)
+        raise Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        typer.Exit(code=1)
+        raise Exit(code=1)
 
+    assert wg_app_id is not None, "error, eg_app_id is None"
+    assert isinstance(region, Region), "error, region is not type Region"
     async with WGApi(app_id=wg_app_id) as wg:
         if (tankopedia := await wg.get_tankopedia(region=region)) is not None:
             await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
@@ -266,26 +259,26 @@ async def wg(
 
 @typer_app.async_command()
 async def file(
-    ctx: typer.Context,
+    ctx: Context,
     infile: Annotated[
         Path,
-        typer.Argument(
-            show_default=False, dir_okay=False, help="read Tankopedia from file"
-        ),
+        Argument(show_default=False, dir_okay=False, help="read Tankopedia from file"),
     ],
 ):
     """Read tankopedia from a file"""
     debug("starting")
+    outfile = Path(".")
+    force: bool = False
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
-        outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
-        force: bool = ctx.obj["force"]
+        outfile = Path(config.get("METADATA", "tankopedia_json"))
+        force = ctx.obj["force"]
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        typer.Exit(code=1)
+        Exit(code=1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        typer.Exit(code=1)
+        Exit(code=1)
 
     if (tankopedia := await WGApiWoTBlitzTankopedia.open_json(infile)) is not None:
         await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
@@ -306,7 +299,7 @@ async def update_tankopedia(
 
     added: set[int]
     updated: set[int]
-    (added, updated) = tankopedia_old.update(tankopedia)
+    (added, updated) = tankopedia_old.update_tanks(tankopedia)
 
     if await tankopedia_old.save_json(outfile) > 0:
         if logger.level < logging.WARNING:
@@ -353,7 +346,7 @@ async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[Tank]:
     list_xml: Path = (
         blitz_app_dir / BLITZAPP_VEHICLES_DIR / nation.name / BLITZAPP_VEHICLE_FILE
     )
-    tankopedia: dict[str, Any]
+    tankopedia: dict[str, Any] = dict()
     if list_xml.is_file():
         debug(f"Opening file: {list_xml} nation={nation}")
         async with aiofiles.open(list_xml, "r", encoding="utf8") as f:
@@ -361,8 +354,8 @@ async def extract_tanks(blitz_app_dir: Path, nation: EnumNation) -> list[Tank]:
     elif (list_xml := list_xml.parent / (list_xml.name + ".dvpl")).is_file():
         debug(f"Opening file (DVPL): {list_xml} nation={nation}")
         async with aiofiles.open(list_xml, "rb") as f:
-            data, _ = decode_dvpl(await f.read(), quiet=True)
-            tankopedia = xmltodict.parse(data)
+            res: Result[bytes, str] = decode_dvpl(await f.read())
+            tankopedia = xmltodict.parse(res.unwrap())
     else:
         error(f"cannot open tank file for nation={nation}: {list_xml}")
         return tanks
@@ -387,7 +380,7 @@ async def read_tank_strs(blitz_app_dir: Path) -> dict[str, str]:
                 raise IOError(f"could not decode DVPL file: {filename}")
             filename = temp_fn
 
-        debug(f"Opening file: %s for reading UserStrings", str(filename))
+        debug("Opening file: %s for reading UserStrings", str(filename))
         with open(filename, "r", encoding="utf8") as strings_file:
             user_strs = yaml.safe_load(strings_file)
     except:

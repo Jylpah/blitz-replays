@@ -1,39 +1,21 @@
 import asyncio
-import sys
 import pytest  # type: ignore
-from typing import Sequence
-import subprocess
-from os.path import dirname, realpath, join as pjoin, basename
+from os.path import dirname, realpath
 from pathlib import Path
-import aiofiles
 from typer.testing import CliRunner
 from click.testing import Result
-from pydantic import BaseModel
-from random import shuffle
 import logging
 
-# sys.path.insert(0, str(Path(__file__).parent.parent.resolve() / "src"))
+from blitzmodels import Maps, WGApiWoTBlitzTankopedia
 
 from blitzreplays.blitzdata import app
+
 
 logger = logging.getLogger()
 error = logger.error
 message = logger.warning
 verbose = logger.info
 debug = logger.debug
-
-from blitzmodels import (
-    Tank,
-    EnumNation,
-    EnumVehicleTier,
-    EnumVehicleTypeInt,
-    EnumVehicleTypeStr,
-    Maps,
-    Map,
-    MapMode,
-    MapModeStr,
-)
-from blitzmodels import WGApiWoTBlitzTankopedia
 
 
 ########################################################
@@ -185,13 +167,13 @@ def test_3_blitzdata_tankopedia_wg(tmp_path: Path) -> None:
     OUTFILE: str = f"{tmp_path / 'tankopedia-exported.json'}"
 
     result = CliRunner().invoke(app, ["tankopedia", "--outfile", OUTFILE, "wg"])
-    assert result.exit_code == 0, f"blitzdata tankopedia wg failed"
+    assert result.exit_code == 0, "blitzdata tankopedia wg failed"
 
     assert (
         tankopedia := asyncio.run(WGApiWoTBlitzTankopedia.open_json(OUTFILE))
-    ) is not None, f"could not open results: tankopedia wg"
+    ) is not None, "could not open results: tankopedia wg"
 
-    assert len(tankopedia) > 500, f"incorrect number of tanks: tankopedia wg"
+    assert len(tankopedia) > 500, "incorrect number of tanks: tankopedia wg"
 
 
 ############################################
@@ -223,10 +205,10 @@ def test_4_blitzdata_maps(
     assert result.exit_code == 0, f"blitzdata maps {cmd} failed"
 
     assert (
-        tankopedia := asyncio.run(Maps.open_json(OUTFILE))
+        maps := asyncio.run(Maps.open_json(OUTFILE))
     ) is not None, f"could not open results: maps {cmd}"
 
-    assert len(tankopedia) == added, f"incorrect number of tanks: maps {cmd}"
+    assert len(maps) == added, f"incorrect number of tanks: maps {cmd}"
 
 
 @pytest.mark.parametrize(
@@ -248,7 +230,8 @@ def test_5_blitzdata_maps_update(
         maps := asyncio.run(Maps.open_json(OUTFILE))
     ) is not None, f"could not open results: maps {cmd}"
     maps_N: int = len(maps)
-    assert maps_N == total - added, "incorrect number of tanks read from existing maps"
+    debug(f"maps_old.json: {maps_N} maps")
+    assert maps_N == total - added, "incorrect number of maps read from file"
 
     result = CliRunner().invoke(app, ["maps", "--outfile", OUTFILE, *args])
     assert result.exit_code == 0, f"blitzdata maps {cmd} failed"
@@ -257,5 +240,6 @@ def test_5_blitzdata_maps_update(
         maps := asyncio.run(Maps.open_json(OUTFILE))
     ) is not None, f"could not open results: maps {cmd}"
 
-    assert len(maps) == total, f"incorrect number of tanks: maps {cmd}"
-    assert len(maps) - maps_N == added, f"incorrect number of tanks: maps {cmd}"
+    debug(f"maps_old.json updated: {len(maps)} maps")
+    assert len(maps) == total, f"incorrect number of maps: maps {cmd}"
+    assert len(maps) - maps_N == added, f"incorrect number of maps: maps {cmd}"
