@@ -205,10 +205,10 @@ def test_4_blitzdata_maps(
     assert result.exit_code == 0, f"blitzdata maps {cmd} failed"
 
     assert (
-        tankopedia := asyncio.run(Maps.open_json(OUTFILE))
+        maps := asyncio.run(Maps.open_json(OUTFILE))
     ) is not None, f"could not open results: maps {cmd}"
 
-    assert len(tankopedia) == added, f"incorrect number of tanks: maps {cmd}"
+    assert len(maps) == added, f"incorrect number of tanks: maps {cmd}"
 
 
 @pytest.mark.parametrize(
@@ -230,7 +230,8 @@ def test_5_blitzdata_maps_update(
         maps := asyncio.run(Maps.open_json(OUTFILE))
     ) is not None, f"could not open results: maps {cmd}"
     maps_N: int = len(maps)
-    assert maps_N == total - added, "incorrect number of tanks read from existing maps"
+    debug(f"maps_old.json: {maps_N} maps")
+    assert maps_N == total - added, "incorrect number of maps read from file"
 
     result = CliRunner().invoke(app, ["maps", "--outfile", OUTFILE, *args])
     assert result.exit_code == 0, f"blitzdata maps {cmd} failed"
@@ -239,5 +240,6 @@ def test_5_blitzdata_maps_update(
         maps := asyncio.run(Maps.open_json(OUTFILE))
     ) is not None, f"could not open results: maps {cmd}"
 
+    debug(f"maps_old.json updated: {len(maps)} maps")
     assert len(maps) == total, f"incorrect number of maps: maps {cmd}"
     assert len(maps) - maps_N == added, f"incorrect number of maps: maps {cmd}"
