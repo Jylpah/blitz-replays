@@ -12,7 +12,9 @@ import configparser
 
 from pyutils.utils import get_temp_filename, set_config
 from pyutils import AsyncTyper
+from pydantic_exportables import Idx
 from blitzmodels import Map, Maps, Region, MapModeStr
+
 from dvplc import decode_dvpl_file
 
 logger = logging.getLogger()
@@ -88,24 +90,16 @@ async def app(
     outfile: Path = Path("__ERROR_NOT_EXISTING__")
     try:
         config: configparser.ConfigParser = ctx.obj["config"]
-        # wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
-        ## region: Region
-        # if wg_region is None:
-        ##     region = Region(
-        #         set_config(config, WG_REGION.value, "WG", "default_region", None)
-        #     )
-        # else:
-        ##     region = wg_region
         outfile = Path(config.get("METADATA", "maps_json"))
         force = ctx.obj["force"]
         if blitz_app_dir is None:
             blitz_app_dir = Path(config.get("METADATA", "blitz_app_dir"))
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
-        typer.Exit(code=1)
+        typer.Exit(code=2)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        typer.Exit(code=1)
+        typer.Exit(code=3)
     assert isinstance(force, bool), f"error: 'force' is not bool: {type(force)}"
     assert (
         blitz_app_dir is not None
@@ -134,6 +128,8 @@ async def app(
             if not await decode_dvpl_file(filename, temp_fn):
                 raise IOError(f"could not decode DVPL file: {filename}")
             filename = temp_fn
+        else:
+            raise FileNotFoundError(f"could not open Maps file: {filename}")
 
         debug("Opening file: %s for reading map strings", str(filename))
         with open(filename, "r", encoding="utf8") as strings_file:
@@ -256,23 +252,17 @@ async def update_maps(outfile: Path, maps: Maps, force: bool = False):
     try:
         debug("starting")
         maps_old: Maps | None = None
+        added: set[Idx] = set()
+        updated: set[Idx] = set()
 
-        if not force and outfile.is_file():
+        if not force:
             if (maps_old := await Maps.open_json(outfile)) is None:
                 error(f"could not parse old Maps file: {outfile}")
                 return None
+            added, updated = maps_old.update(maps)
+            maps = maps_old
         else:
             maps_old = Maps()
-
-        new: set[str] = {map.key for map in maps}
-        old: set[str] = {map.key for map in maps_old}
-        added: set[str] = new - old
-        updated: set[str] = new & old
-        updated = {key for key in updated if maps[key] != maps_old[key]}
-
-        if not force:
-            maps_old.update(maps)
-            maps = maps_old
 
         if await maps.save_json(outfile) > 0:
             if logger.level < logging.WARNING:
