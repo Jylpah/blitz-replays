@@ -36,10 +36,11 @@ dev = [
     "jupyter>=1.0.0",
     "mypy>=1.5.1",
     "pip-chill>=1.0.3",
-    "pytest",
-    "pytest-asyncio",
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.23.2",
     "pytest-cov>=4.1.0",
-    "pytest-datafiles",
+    "pytest-datafiles>=3.0.0",
+    "ruff>=0.1.9",
     "yappi>=1.4.0",
     "types-aiofiles>=23.1.0.1",
     "types-requests>=2.28.11.17",
@@ -80,10 +81,14 @@ init_typed = false
 warn_required_dynamic_aliases = false
 warn_untyped_fields = true
 
-
-[tool.black]
+[tool.ruff]
 # line-length = 88
-include = '\.pyi?$'
+include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
+
+indent-width = 4
+extend-include = ["*.ipynb"]
+extend-exclude = [".venv", ".vscode" ] 
+fixable = ["ALL"]
 
 
 [tool.pyright]
@@ -92,10 +97,10 @@ reportInvalidStringEscapeSequence = false
 
 
 [tool.pytest.ini_options]
-minversion = "7.0"
+minversion = "7.4"
 addopts = ["-v", "--cov=src", "--import-mode=importlib"]
 testpaths = ["tests"]
-pythonpath = "src"
+pythonpath = "src" # avoid import path append in test files
 filterwarnings = [
     'ignore:Inheritance class ThrottledClientSession from ClientSession is discouraged:DeprecationWarning',
     'ignore::coverage.control.CoverageWarning:coverage.control',
