@@ -1,6 +1,6 @@
 [project]
 name = "blitz-replays"
-version = "0.4.1"
+version = "0.4.2"
 authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"
@@ -53,8 +53,8 @@ dev = [
 "Bug Tracker" = "https://github.com/Jylpah/blitz-replays/issues"
 
 [project.scripts]
-blitz-replays = "blitzreplays.blitzreplays:cli_main"
-blitz-data = "blitzreplays.blitzdata:cli_main"
+blitz-replays = "blitzreplays.blitzreplays:app"
+blitz-data = "blitzreplays.blitzdata:app"
 
 [build-system]
 requires = ["hatchling"]
