@@ -3,8 +3,11 @@ from typing import List, Self, Dict, Tuple, Set, ClassVar, Type, Literal
 from pydantic import Field, model_validator
 from abc import abstractmethod
 from itertools import product
+from asyncio import sleep
 
+from pyutils import IterableQueue, QueueDone
 from pydantic_exportables import JSONExportable
+from blitzmodels import WGApi, TankStat, Region, AccountInfo
 from blitzmodels.wotinspector.wi_apiv2 import Replay, PlayerData
 from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
 from blitzmodels import Tank, WGApiWoTBlitzTankopedia, EnumVehicleTypeStr, Maps, Map
@@ -64,11 +67,11 @@ class PlayerFilter:
         return PlayerFilter(team=team, group=group)
 
 
-StatType = Literal["player", "tier", "tank"]
+StatsType = Literal["player", "tier", "tank"]
 
 
 class PlayerStats(JSONExportable):
-    stat_type: StatType
+    # stat_type: StatsType
     account_id: int
     tank_id: int = 0
     tier: int = 0
@@ -82,33 +85,211 @@ class PlayerStats(JSONExportable):
     tank_avgdmg: float = 0
     tank_battles: int = 0
 
-    @property
-    def key(self) -> str:
-        return StatsCache.stat_key(self.account_id, self.tier, self.tank_id)
+    # @property
+    # def key(self) -> str:
+    #     return StatsCache.stat_key(self.account_id, self.tier, self.tank_id)
+
+    @classmethod
+    def from_tank_stat(cls, ts=TankStat) -> "PlayerStats":
+        return PlayerStats(
+            account_id=ts.account_id,
+            tank_id=ts.tank_id,
+            tank_wr=ts.all.wins / ts.all.battles,
+            tank_avgdmg=ts.all.damage_dealt / ts.all.battles,
+            tank_battles=ts.all.battles,
+        )
+
+    @classmethod
+    def tank_stats(cls, stats: List[TankStat]) -> List["PlayerStats"]:
+        """Create PlayerStats from WG API Tank Stats for each tank"""
+        res: List[PlayerStats] = list()
+        for ts in stats:
+            res.append(PlayerStats.from_tank_stat(ts))
+        return res
+
+    @classmethod
+    def tier_stats(
+        cls, account_id: int, stats: List[TankStat], tier: int
+    ) -> "PlayerStats":
+        """
+        Create PlayerStats from WG API Tank Stats
+
+        Assumes all the TankStats are for the same tier tanks
+        """
+
+        res: PlayerStats = PlayerStats(account_id=account_id, tier=tier)
+        try:
+            for ts in stats:
+                res.tier_battles = res.tier_battles + ts.all.battles
+                res.tier_wr = res.tier_wr + ts.all.wins
+                res.tier_avgdmg = res.tier_avgdmg + ts.all.damage_dealt
+
+            res.tier_wr = res.tier_wr / res.tier_battles
+            res.tier_avgdmg = res.tier_avgdmg / res.tier_battles
+        except Exception as err:
+            debug(err)
+        return res
+
+    @classmethod
+    def player_stats(cls, stats: AccountInfo) -> "PlayerStats":
+        """ "Create PlayerStats from WG API Tank Stats"""
+
+        try:
+            if (
+                stats.statistics is not None
+                and (ps := stats.statistics["all"]) is not None
+            ):
+                return PlayerStats(
+                    account_id=stats.account_id,
+                    wr=ps.wins / ps.battles,
+                    avgdmg=ps.damage_dealt / ps.battles,
+                    battles=ps.battles,
+                )
+        except KeyError:
+            debug(f"no player stats for account_id={stats.account_id}")
+        return PlayerStats(account_id=stats.account_id)
+
+
+@dataclass
+class StatsQuery:
+    """Class for defining player stats query"""
+
+    account_id: int
+    stats_type: StatsType
+    tier: int = 0
+    tank_id: int = 0
 
 
 class StatsCache:
-    def __init__(self: Self):
-        self.db: Dict[str, PlayerStats] = dict()
+    def __init__(self: Self, wg_api: WGApi, statsQ: IterableQueue[StatsQuery]):
+        """creator of StatsCache must add_producer() to the statsQ before calling __init__()"""
+        self._db: Dict[str, PlayerStats] = dict()
+        self._query_cache: Set[str] = set()
+        self._wg_api = wg_api
+        self._Q: IterableQueue[StatsQuery] = statsQ
 
     @classmethod
-    def stat_key(cls, account_id: int, tier: int = 0, tank_id: int = 0) -> str:
+    def stat_key(
+        cls,
+        stats_type: StatsType,
+        account_id: int = 0,
+        tier: int = 0,
+        tank_id: int = 0,
+        stats: PlayerStats | None = None,
+    ) -> str:
+        if stats is not None:
+            account_id = stats.account_id
+            tier = stats.tier
+            tank_id = stats.tank_id
+        match stats_type:
+            case "player":
+                tank_id = 0
+                tier = 0
+            case "tier":
+                tank_id = 0
+            case "tank":
+                tier = 0
         return (
             hex(account_id)[2:].zfill(10)
-            + hex(tank_id)[2:].zfill(6)
             + hex(tier)[2:].zfill(2)
+            + hex(tank_id)[2:].zfill(6)
         )
+
+    async def player_stats_worker(self) -> None:
+        """Async worker for retrieving player stats"""
+        # TODO: add database cache
+        regionQ: Dict[Region, Set[int]] = dict()
+        region: Region
+        res: Dict[str, PlayerStats]
+        debug("starting")
+        for region in Region.API_regions():
+            regionQ[region] = set()
+
+        async for stats_query in self._Q:
+            try:
+                region = Region.from_id(stats_query.account_id)
+                regionQ[region].add(stats_query.account_id)
+                if len(regionQ[region]) == 100:
+                    res = await self.get_player_stats(
+                        account_ids=regionQ[region], region=region
+                    )
+                    self._db.update(res)
+                    regionQ[region] = set()
+            except QueueDone:
+                debug("finished")
+
+            except Exception as err:
+                error(err)
+            for region, account_ids in regionQ.items():
+                if len(account_ids) > 0:
+                    res = await self.get_player_stats(account_ids, region=region)
+                    self._db.update(res)
+
+    async def get_player_stats(
+        self, account_ids: Set[int], region: Region
+    ) -> Dict[str, PlayerStats]:
+        """
+        Actually fetch the player stats from WG API
+        """
+        fields: List[str] = [
+            "account_id",
+            "last_battle_time",
+            "statistics.all.battles",
+            "statistics.all.wins",
+            "statistics.all.damage_dealt",
+        ]
+        res: Dict[str, PlayerStats] = dict()
+        if (
+            player_stats := await self._wg_api.get_account_info(
+                account_ids=list(account_ids),
+                region=region,
+                fields=fields,
+            )
+        ) is not None:
+            for player_stat in player_stats:
+                key = self.stat_key(
+                    stats_type="player",
+                    account_id=player_stat.account_id,
+                )
+                res[key] = PlayerStats.player_stats(player_stat)
+                account_ids.remove(player_stat.account_id)
+
+        if len(account_ids) > 0:
+            for account_id in account_ids:
+                key = self.stat_key(
+                    stats_type="player",
+                    account_id=account_id,
+                )
+                res[key] = PlayerStats(account_id=account_id)
+        return res
 
     async def get_stats(
         self,
-        stats_type: StatType,
+        stats_type: StatsType,
         account_id: int,
         tier: int = 0,
         tank_id: int = 0,
     ) -> PlayerStats:
         # TODO: if stats not in db, fetch those
         # TODO: if fetched stats are None, store None
-        return self.db[self.stat_key(account_id, tier, tank_id)]
+        key: str = self.stat_key(stats_type, account_id, tier, tank_id)
+
+        if key not in self._query_cache:
+            self._query_cache.add(key)
+            await self._Q.put(
+                StatsQuery(
+                    account_id=account_id,
+                    stats_type=stats_type,
+                    tier=tier,
+                    tank_id=tank_id,
+                )
+            )
+
+        while True:
+            try:
+                return self._db[key]
+            except KeyError:
+                await sleep(2)
 
 
 class EnrichedPlayerData(PlayerData):
@@ -155,7 +336,7 @@ class EnrichedReplay(Replay):
     async def enrich(
         self,
         stats_cache: StatsCache,
-        stats_type: StatType,
+        stats_type: StatsType,
         tankopedia: WGApiWoTBlitzTankopedia,
         maps: Maps,
         player: int = -1,
