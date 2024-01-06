@@ -1,9 +1,10 @@
 import logging
-from typing import List, Self, Dict, Tuple, ClassVar, Type
+from typing import List, Self, Dict, Tuple, Set, ClassVar, Type, Literal
 from pydantic import Field, model_validator
 from abc import abstractmethod
 from itertools import product
 
+from pydantic_exportables import JSONExportable
 from blitzmodels.wotinspector.wi_apiv2 import Replay, PlayerData
 from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
 from blitzmodels import Tank, WGApiWoTBlitzTankopedia, EnumVehicleTypeStr, Maps, Map
@@ -63,8 +64,78 @@ class PlayerFilter:
         return PlayerFilter(team=team, group=group)
 
 
+StatType = Literal["player", "tier", "tank"]
+
+
+class PlayerStats(JSONExportable):
+    stat_type: StatType
+    account_id: int
+    tank_id: int = 0
+    tier: int = 0
+    wr: float = 0
+    avgdmg: float = 0
+    battles: int = 0
+    tier_wr: float = 0
+    tier_avgdmg: float = 0
+    tier_battles: int = 0
+    tank_wr: float = 0
+    tank_avgdmg: float = 0
+    tank_battles: int = 0
+
+    @property
+    def key(self) -> str:
+        return StatsCache.stat_key(self.account_id, self.tier, self.tank_id)
+
+
+class StatsCache:
+    def __init__(self: Self):
+        self.db: Dict[str, PlayerStats] = dict()
+
+    @classmethod
+    def stat_key(cls, account_id: int, tier: int = 0, tank_id: int = 0) -> str:
+        return (
+            hex(account_id)[2:].zfill(10)
+            + hex(tank_id)[2:].zfill(6)
+            + hex(tier)[2:].zfill(2)
+        )
+
+    async def get_stats(
+        self,
+        stats_type: StatType,
+        account_id: int,
+        tier: int = 0,
+        tank_id: int = 0,
+    ) -> PlayerStats:
+        # TODO: if stats not in db, fetch those
+        # TODO: if fetched stats are None, store None
+        return self.db[self.stat_key(account_id, tier, tank_id)]
+
+
 class EnrichedPlayerData(PlayerData):
     tank: Tank | None = None
+    # player stats
+    wr: float = 0
+    avgdmg: float = 0
+    battles: int = 0
+    tier_wr: float = 0
+    tier_avgdmg: float = 0
+    tier_battles: int = 0
+    tank_wr: float = 0
+    tank_avgdmg: float = 0
+    tank_battles: int = 0
+
+    def add_stats(self, stats: PlayerStats):
+        self.wr = stats.wr
+        self.avgdmg = stats.avgdmg
+        self.battles = stats.battles
+
+        self.tier_wr = stats.tier_wr
+        self.tier_avgdmg = stats.tier_avgdmg
+        self.tier_battles = stats.tier_battles
+
+        self.tank_wr = stats.tank_wr
+        self.tank_avgdmg = stats.tank_avgdmg
+        self.tank_battles = stats.tank_battles
 
 
 class EnrichedReplay(Replay):
@@ -81,13 +152,18 @@ class EnrichedReplay(Replay):
         self.players_data = list()
         return self
 
-    def enrich(
-        self, tankopedia: WGApiWoTBlitzTankopedia, maps: Maps, player: int | None = None
+    async def enrich(
+        self,
+        stats_cache: StatsCache,
+        stats_type: StatType,
+        tankopedia: WGApiWoTBlitzTankopedia,
+        maps: Maps,
+        player: int = -1,
     ):
+        data: EnrichedPlayerData
         # add tanks
-
         for account_id in self.players_dict:
-            data: EnrichedPlayerData = self.players_dict[account_id]
+            data = self.players_dict[account_id]
             tank_id: int = data.vehicle_descr
             try:
                 tank: Tank = tankopedia[tank_id]
@@ -96,8 +172,17 @@ class EnrichedReplay(Replay):
             except KeyError:
                 debug(f"could not find tank_id={tank_id} from Tankopedia")
 
+        # add player stats
+        for account_id in self.players_dict:
+            data = self.players_dict[account_id]
+            await data.add_stats(
+                await stats_cache.get_stats(
+                    stats_type, account_id, self.battle_tier, self.vehicle_descr
+                )
+            )
+
         # set player
-        if player is None:
+        if player < 0:
             self.player = self.protagonist
         elif player in self.allies:
             self.player = player
@@ -224,11 +309,83 @@ ValueType = Tuple[str | float | int, int | float]
 @dataclass
 class Metric:
     operation: ClassVar[str]
-    
+
     field: str  # key or data.key
-    #name: str
-    fmt: str
+    # name: str
+    # fmt: str
     filter: PlayerFilter | None = None
+
+    _replay_fields: ClassVar[List[str]] = [
+        "battle_duration",
+        "exp",
+        "exp_total",
+        "exp_free",
+        "exp_free_base",
+        "exp_penalty",
+        "credits_penalty",
+        "credits_contribution_in",
+        "credits_contribution_out",
+        "enemies_spotted",
+        "enemies_destroyed",
+        "damage_assisted",
+        "damage_made",
+        "credits_base",
+        "credits_total",
+        "repair_cost",
+    ]
+
+    _player_fields: ClassVar[List[str]] = [
+        f"player.{key}"
+        for key in [
+            "base_capture_points",
+            "base_defend_points",
+            "credits",
+            "damage_assisted",
+            "damage_assisted_track",
+            "damage_blocked",
+            "damage_made",
+            "damage_received",
+            "distance_travelled",
+            "enemies_damaged",
+            "enemies_destroyed",
+            "enemies_spotted",
+            "exp",
+            "exp_for_assist",
+            "exp_for_damage",
+            "exp_team_bonus",
+            "hero_bonus_credits",
+            "hero_bonus_exp",
+            "hitpoints_left",
+            "hits_bounced",
+            "hits_pen",
+            "hits_received",
+            "hits_splash",
+            "shots_made",
+            "shots_hit",
+            "shots_pen",
+            "shots_splash",
+            "wp_points_earned",
+            "wp_points_stolen",
+        ]
+    ]
+
+    _fields: Set[str] = set(_player_fields + _replay_fields)
+
+    def rm_prefix(self, field: str) -> str:
+        """Remove xxxx. from the beginning of the field"""
+        if len(field.split(".")) > 1:
+            return ".".join(field.split(".")[1:])
+        else:
+            return field
+
+    def __post__init__(self):
+        for fld in self.field.split(","):
+            if fld not in self._fields:
+                raise ValueError(f"field '{fld}' is not found in replays")
+        if (
+            "," not in self.field
+        ):  # multi-fields have be dealt in each child class separately
+            self.field = self.rm_prefix(self.field)
 
     @abstractmethod
     def calc(self, replay: EnrichedReplay) -> ValueType:
@@ -237,10 +394,12 @@ class Metric:
     @property
     def key(self) -> str:
         if self.filter is None:
-            return '-'.join([self.operation, self.field])
+            return "-".join([self.operation, self.field])
         else:
-            return '-'.join([self.filter.team, self.filter.group, self.operation, self.field])
-    
+            return "-".join(
+                [self.filter.team, self.filter.group, self.operation, self.field]
+            )
+
     # @abstractmethod
     # def record(self, value: ValueType):
     #     raise NotImplementedError
@@ -250,8 +409,8 @@ class Metric:
         """Return value"""
         raise NotImplementedError
 
-    def print(self, value: ValueType) -> str:
-        return self.fmt.format(self.value(value))
+    # def print(self, value: ValueType) -> str:
+    #     return self.fmt.format(self.value(value))
 
 
 @dataclass
@@ -263,56 +422,73 @@ class Metrics:
     A concrete example: an AverageMetric() for a enemy teams' average win rate.
     """
 
-    measures    : ClassVar[Dict[str, Type[Metric]]] = dict()
-    db          : Dict[str, Metric]                 = data_field(default_factory=dict)
+    measures: ClassVar[Dict[str, Type[Metric]]] = dict()
+    db: Dict[str, Metric] = data_field(default_factory=dict)
 
     @classmethod
     def register(cls, measure: Type[Metric]):
         cls.measures[measure.operation] = measure
 
-    def parse(self, line: str):
+    def parse(self, keystr: str) -> Metric:
         """Parse a config for a Metric
 
-        Format is: key;column_name;team_filter;group_filter;field_operation;fields;format
+        Format is:
+        player_measure: team_filter-group_filter-field_operation-fields
+        replay measure: field_operation-fields
 
         where the 'key' has to be unique
         """
         try:
-            (key, team_filter, group_filter, ops, fields, fmt) = line.split("-")
-            if key in self.db:
-                raise KeyError("duplicate key defined: {key}")
-            metric: Type[Metric] = CountMetric
-            match ops:
-                case "count":
-                    metric = CountMetric
-                case "sum":
-                    metric = SumMetric
-                case "avg":
-                    metric = AverageMetric
-                case "min":
-                    metric = MinMetric
-                case "max":
-                    metric = MaxMetric
-                case "ratio":
-                    metric = RatioMetric
-                case _:
-                    raise ValueError(f"unsupported field operation key: {ops}")
+            team_filter: str | None = None
+            group_filter: str | None = None
+            key: List[str] = keystr.split("-")
+            if len(key) == 2:
+                ops, fields = key
+            elif len(key) == 4:
+                team_filter, group_filter, ops, fields = key
+            else:
+                raise ValueError(f"invalid metric key: {keystr}")
 
-            self.db[key] = metric(
-                filter=PlayerFilter(
-                    team=EnumTeamFilter(team_filter),
-                    group=EnumGroupFilter(group_filter),
-                ),
-                field=fields,
-                fmt=fmt,
-            )
+            if keystr not in self.db:
+                metric: Type[Metric] = CountMetric
+                match ops:
+                    case "count":
+                        metric = CountMetric
+                    case "sum":
+                        metric = SumMetric
+                    case "avg":
+                        metric = AverageMetric
+                    case "min":
+                        metric = MinMetric
+                    case "max":
+                        metric = MaxMetric
+                    case "ratio":
+                        metric = RatioMetric
+                    case _:
+                        raise ValueError(f"unsupported field operation key: {ops}")
+                if team_filter is not None and group_filter is not None:
+                    self.db[keystr] = metric(
+                        filter=PlayerFilter(
+                            team=EnumTeamFilter(team_filter),
+                            group=EnumGroupFilter(group_filter),
+                        ),
+                        field=fields,
+                    )
+                else:
+                    self.db[keystr] = metric(
+                        filter=None,
+                        field=fields,
+                    )
+            return self.db[keystr]
         except Exception as err:
-            error(f"could not parse metric from line: {line}")
+            error(f"could not parse metric from: {keystr}")
             error(err)
-    
+            raise err
+
     @classmethod
     def ops(cls) -> List[str]:
         return list(cls.measures.keys())
+
 
 class CountMetric(Metric):
     operation = "count"
@@ -328,6 +504,7 @@ class CountMetric(Metric):
         if isinstance(v, int):
             return v
         raise TypeError("value is not int")
+
 
 Metrics.register(CountMetric)
 
@@ -361,6 +538,7 @@ class SumMetric(Metric):
             raise TypeError("value cannot be string")
         return v
 
+
 Metrics.register(SumMetric)
 
 
@@ -393,6 +571,7 @@ class AverageMetric(SumMetric):
             raise TypeError("value cannot be string")
         return v / value[1]
 
+
 Metrics.register(AverageMetric)
 
 
@@ -420,6 +599,7 @@ class MinMetric(Metric):
             raise TypeError("value cannot be string")
         return v
 
+
 Metrics.register(MinMetric)
 
 
@@ -445,7 +625,8 @@ class MaxMetric(Metric):
         v: int | float | str = value[0]
         if isinstance(v, str):
             raise TypeError("value cannot be string")
-        return v    
+        return v
+
 
 Metrics.register(MaxMetric)
 
@@ -455,10 +636,11 @@ class RatioMetric(SumMetric):
 
     _value_field: str = ""
     _div_field: str = ""
-    _is_player_field_value : bool = False
-    _is_player_field_div : bool = False
+    _is_player_field_value: bool = False
+    _is_player_field_div: bool = False
 
     def __post__init__(self):
+        super().__post__init__(self)
         try:
             self._value_field, self._div_field = self.field.split(",")
             if len(parts := self._value_field.split(".")) == 2:
@@ -476,7 +658,9 @@ class RatioMetric(SumMetric):
     def calc(self, replay: EnrichedReplay) -> ValueType:
         if self.filter is None:
             try:
-                return getattr(replay, self._value_field), getattr(replay, self._div_field)
+                return getattr(replay, self._value_field), getattr(
+                    replay, self._div_field
+                )
             except AttributeError as err:
                 debug(
                     f"no attribute '{self._value_field}' or '{self._div_field}' found in replay: {replay.title}'"
@@ -495,19 +679,19 @@ class RatioMetric(SumMetric):
                 for p in replay.get_players(self.filter):
                     try:
                         if self._is_player_field_value:
-                            val += getattr(replay.players_dict[p], self._value_field)                        
+                            val += getattr(replay.players_dict[p], self._value_field)
                         else:
                             div += getattr(replay, self._div_field)
                         if self._is_player_field_div:
                             div += getattr(replay.players_dict[p], self._div_field)
                         else:
-                            val += getattr(replay, self._value_field)                        
+                            val += getattr(replay, self._value_field)
                     except AttributeError as err:
                         debug(
-                                f"not attribute 'players_data.{self._value_field}' found in replay: {replay.title}'"
-                            )
+                            f"not attribute 'players_data.{self._value_field}' found in replay: {replay.title}'"
+                        )
                         error(err)
-                    
+
             return val, div
 
     def value(self, value: ValueType) -> float:
@@ -525,65 +709,12 @@ Metrics.register(RatioMetric)
 #
 ############################################################################################
 
-_replay_fields: List[str] = [
-    "battle_duration",
-    "exp",
-    "exp_total",
-    "exp_free",
-    "exp_free_base",
-    "exp_penalty",
-    "credits_penalty",
-    "credits_contribution_in",
-    "credits_contribution_out",
-    "enemies_spotted",
-    "enemies_destroyed",
-    "damage_assisted",
-    "damage_made",
-    "credits_base",
-    "credits_total",
-    "repair_cost",
-]
 
-_player_fields: List[str] = [
-    "base_capture_points",
-    "base_defend_points",
-    "credits",
-    "damage_assisted",
-    "damage_assisted_track",
-    "damage_blocked",
-    "damage_made",
-    "damage_received",
-    "distance_travelled",
-    "enemies_damaged",
-    "enemies_destroyed",
-    "enemies_spotted",
-    "exp",
-    "exp_for_assist",
-    "exp_for_damage",
-    "exp_team_bonus",
-    "hero_bonus_credits",
-    "hero_bonus_exp",
-    "hitpoints_left",
-    "hits_bounced",
-    "hits_pen",
-    "hits_received",
-    "hits_splash",
-    "killed_by",
-    "shots_made",
-    "shots_hit",
-    "shots_pen",
-    "shots_splash",
-    "wp_points_earned",
-    "wp_points_stolen",
-]
+_ratio_fields_value: List[str] = []
 
-_ratio_fields_value : List[str] = [
+_ratio_fields_div: List[str] = []
 
-]
-
-_ratio_fields_div : List[str] = [
-
-]
-
-for team, group, ops, field in product(EnumTeamFilter, EnumGroupFilter, Metrics.ops(), _replay_fields):
+for team, group, ops, field in product(
+    EnumTeamFilter, EnumGroupFilter, Metrics.ops(), Metric._replay_fields
+):
     print(f"{team}-{group}-{ops}-{field}")
