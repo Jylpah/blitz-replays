@@ -38,6 +38,7 @@ debug = logger.debug
 
 TANKOPEDIA: str = "tanks.json"
 WG_APP_ID: str = "d6d03acb6bee0e9f361b6e02e1780b56"
+WG_RATE_LIMIT: float = 10.0  # 10/sec
 WG_REGION: Region = Region.eu
 
 BLITZAPP_STRINGS: str = "Data/Strings/en.yaml"
@@ -217,6 +218,10 @@ async def wg(
     wg_region: Annotated[
         Optional[Region], Option(help=f"WG API region (default: {WG_REGION})")
     ] = None,
+    wg_rate_limit: Annotated[
+        Optional[float],
+        Option(show_default=False, help="WG API rate limit, default=10/sec"),
+    ] = None,
 ):
     """
     get Tankopedia from WG API
@@ -230,6 +235,9 @@ async def wg(
             region = Region(set_config(config, WG_REGION, "WG", "default_region", None))
         else:
             region = wg_region
+        wg_rate_limit = set_config(
+            config, WG_RATE_LIMIT, "WG", "rate_limit", wg_rate_limit
+        )
         outfile: Path = Path(config.get("METADATA", "tankopedia_json"))
 
         force: bool = ctx.obj["force"]
@@ -243,8 +251,10 @@ async def wg(
 
     assert wg_app_id is not None, "error, eg_app_id is None"
     assert isinstance(region, Region), "error, region is not type Region"
-    async with WGApi(app_id=wg_app_id) as wg:
-        if (tankopedia := await wg.get_tankopedia(region=region)) is not None:
+    async with WGApi(
+        app_id=wg_app_id, rate_limit=wg_rate_limit, default_region=region
+    ) as wg:
+        if (tankopedia := await wg.get_tankopedia()) is not None:
             await update_tankopedia(outfile=outfile, tankopedia=tankopedia, force=force)
         else:
             error(f"could not read Tankopedia from WG API ({region} server)")
