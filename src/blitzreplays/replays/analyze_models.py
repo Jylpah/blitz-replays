@@ -1,18 +1,31 @@
 import logging
-from typing import List, Self, Dict, Tuple, Set, ClassVar, Type, Literal
+from typing import List, Self, Dict, Tuple, Set, ClassVar, Type, Literal, Iterable
 from pydantic import Field, model_validator
 from abc import abstractmethod
 from itertools import product
-from asyncio import sleep
-
-from pyutils import IterableQueue, QueueDone
-from pydantic_exportables import JSONExportable
-from blitzmodels import WGApi, TankStat, Region, AccountInfo
-from blitzmodels.wotinspector.wi_apiv2 import Replay, PlayerData
-from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
-from blitzmodels import Tank, WGApiWoTBlitzTankopedia, EnumVehicleTypeStr, Maps, Map
+from asyncio import Lock
 from enum import StrEnum
 from dataclasses import dataclass, field as data_field
+
+from pyutils import IterableQueue, EventCounter
+from pydantic_exportables import JSONExportable, JSONExportableRootDict, Idx
+
+from blitzmodels import (
+    Tank,
+    WGApiWoTBlitzTankopedia,
+    WGApiWoTBlitzTankStats,
+    EnumVehicleTypeStr,
+    Maps,
+    Map,
+    WGApi,
+    TankStat,
+    AccountInfo,
+    AccountId,
+    TankId,
+)
+from blitzmodels.wotinspector.wi_apiv2 import Replay, PlayerData
+from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
+
 
 logger = logging.getLogger()
 error = logger.error
@@ -169,7 +182,7 @@ class PlayerStats(JSONExportable):
 
     @classmethod
     def tier_stats(
-        cls, account_id: int, stats: List[TankStat], tier: int
+        cls, account_id: AccountId, stats: List[TankStat], tier: int
     ) -> "PlayerStats":
         """
         Create PlayerStats from WG API Tank Stats
@@ -180,12 +193,12 @@ class PlayerStats(JSONExportable):
         res: PlayerStats = PlayerStats(account_id=account_id, tier=tier)
         try:
             for ts in stats:
-                res.tier_battles = res.tier_battles + ts.all.battles
-                res.tier_wr = res.tier_wr + ts.all.wins
-                res.tier_avgdmg = res.tier_avgdmg + ts.all.damage_dealt
+                res.battles = res.battles + ts.all.battles
+                res.wr = res.wr + ts.all.wins
+                res.avgdmg = res.avgdmg + ts.all.damage_dealt
 
-            res.tier_wr = res.tier_wr / res.tier_battles
-            res.tier_avgdmg = res.tier_avgdmg / res.tier_battles
+            res.wr = res.wr / res.battles
+            res.avgdmg = res.avgdmg / res.battles
         except Exception as err:
             debug(err)
         return res
@@ -560,23 +573,27 @@ class EnrichedPlayerData(PlayerData):
     tank_battles: int = 0
 
     def add_stats(self, stats: PlayerStats):
-        self.wr = stats.wr
-        self.avgdmg = stats.avgdmg
-        self.battles = stats.battles
-
-        self.tier_wr = stats.tier_wr
-        self.tier_avgdmg = stats.tier_avgdmg
-        self.tier_battles = stats.tier_battles
-
-        self.tank_wr = stats.tank_wr
-        self.tank_avgdmg = stats.tank_avgdmg
-        self.tank_battles = stats.tank_battles
+        match stats.stats_type:
+            case "player":
+                self.wr = stats.wr
+                self.avgdmg = stats.avgdmg
+                self.battles = stats.battles
+            case "tier":
+                self.tier_wr = stats.wr
+                self.tier_avgdmg = stats.avgdmg
+                self.tier_battles = stats.battles
+            case "tank":
+                self.tank_wr = stats.wr
+                self.tank_avgdmg = stats.avgdmg
+                self.tank_battles = stats.battles
+            case other:
+                raise ValueError(f"unknown stats type: {other}")
 
 
 class EnrichedReplay(Replay):
-    players_dict: Dict[int, EnrichedPlayerData] = Field(default_factory=dict)
-    player: int = -1
-    plat_mate: List[int] = Field(default_factory=list)
+    players_dict: Dict[AccountId, EnrichedPlayerData] = Field(default_factory=dict)
+    player: AccountId = -1
+    plat_mate: List[AccountId] = Field(default_factory=list)
     battle_tier: int = 0
     map: Map | None = None
 
@@ -589,12 +606,15 @@ class EnrichedReplay(Replay):
 
     async def enrich(
         self,
-        stats_cache: StatsCache,
-        stats_type: StatsType,
+        # stats_cache: StatsCache,
+        # stats_type: StatsType,
         tankopedia: WGApiWoTBlitzTankopedia,
         maps: Maps,
-        player: int = -1,
+        player: int = 0,
     ):
+        """
+        Prepare the (static) replay data for the particular analysis
+        """
         data: EnrichedPlayerData
         # add tanks
         for account_id in self.players_dict:
@@ -607,21 +627,28 @@ class EnrichedReplay(Replay):
             except KeyError:
                 debug(f"could not find tank_id={tank_id} from Tankopedia")
 
-        # add player stats
-        for account_id in self.players_dict:
-            data = self.players_dict[account_id]
-            await data.add_stats(
-                await stats_cache.get_stats(
-                    stats_type, account_id, self.battle_tier, self.vehicle_descr
-                )
-            )
+        # fetch player stats
+        # for account_id in self.players_dict:
+        #     data = self.players_dict[account_id]
+        #     await stats_cache.fetch_stats(
+        #         stats_type, account_id, self.battle_tier, self.vehicle_descr
+        #     )
+        #     ## Add player stats later
+        #     # await data.add_stats(
+        #     #     await stats_cache.get_stats(
+        #     #         stats_type, account_id, self.battle_tier, self.vehicle_descr
+        #     #     )
+        #     # )
 
         # set player
-        if player < 0:
+        if player <= 0:
             self.player = self.protagonist
-        elif player in self.allies:
+        else:
             self.player = player
-        elif player in self.enemies:  # swapt teams
+
+        if player in self.allies:
+            pass
+        elif player in self.enemies:  # swap teams
             tmp_team: list[int] = self.allies
             self.allies = self.enemies
             self.enemies = tmp_team
@@ -651,7 +678,12 @@ class EnrichedReplay(Replay):
         except (KeyError, ValueError):
             error(f"no map (id={self.map_id}) in Maps file")
 
-    def get_players(self, filter: PlayerFilter) -> List[int]:
+    def get_players(
+        self,
+        filter: PlayerFilter = PlayerFilter(
+            team=EnumTeamFilter.all, group=EnumGroupFilter.all
+        ),
+    ) -> List[int]:
         """
         Get players matching the filter from the replay
         """
@@ -737,12 +769,31 @@ class EnrichedReplay(Replay):
                 return res
         return []
 
+    def get_stats_queries(self, stats_type: StatsType) -> Set[StatsQuery]:
+        queries: Set[StatsQuery] = set()
+
+        for account_id in self.get_players():
+            query = StatsQuery(account_id=account_id, stats_type=stats_type)
+            match stats_type:
+                case "tier":
+                    query.tier = self.battle_tier
+                case "tank":
+                    query.tank_id = self.players_dict[account_id].vehicle_descr
+        return queries
+
 
 ValueType = Tuple[str | float | int, int | float]
 
 
 @dataclass
 class Metric:
+    """
+    An abstract base class for "metrics" i.e. different measures what can be show on
+    a single column on the analyzer reports.
+
+    A concrete example: an AverageMetric() for a enemy teams' average win rate.
+    """
+
     operation: ClassVar[str]
 
     field: str  # key or data.key
@@ -850,12 +901,7 @@ class Metric:
 
 @dataclass
 class Metrics:
-    """
-    An abstract base class for "metrics" i.e. different measures what can be show on
-    a single column on the analyzer reports.
-
-    A concrete example: an AverageMetric() for a enemy teams' average win rate.
-    """
+    """ """
 
     measures: ClassVar[Dict[str, Type[Metric]]] = dict()
     db: Dict[str, Metric] = data_field(default_factory=dict)
