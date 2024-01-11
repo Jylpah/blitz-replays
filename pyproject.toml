@@ -23,9 +23,10 @@ dependencies = [
     "aiostream>=0.5.0",
     "pydantic>=2.4.2",
     "PyYAML>=6.0",
-    "sortedcollections>=2.1.0",
-    "xmltodict>=0.13.0",
-    "typer>=0.9.0",    
+    "sortedcollections>=2.1.0",    
+    "tomlkit>=0.12.3",
+    "typer>=0.9.0",   
+    "xmltodict>=0.13.0", 
     "blitz-models @ git+https://github.com/Jylpah/blitz-models.git",
     "dvplc @ git+https://github.com/Jylpah/dvplc.git",
 ]
@@ -69,8 +70,10 @@ packages = ["src/blitzreplays"]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
-exclude = ['^blitz.*\.py']
-mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
+exclude = ['^blitz.*\.py', "tmp"]
+# mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
+mypy_path = ['src']
+
 
 
 [tool.pydantic-mypy]
