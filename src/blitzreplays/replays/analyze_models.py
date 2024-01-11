@@ -262,10 +262,19 @@ class TankStatsDict(JSONExportableRootDict[PlayerTankStat]):
 class StatsQuery:
     """Class for defining player stats query"""
 
-    account_id: int
+    account_id: AccountId
     stats_type: StatsType
     tier: int = 0
     tank_id: int = 0
+
+    @property
+    def key(self) -> str:
+        return StatsCache.stat_key(
+            stats_type=self.stats_type,
+            account_id=self.account_id,
+            tier=self.tier,
+            tank_id=self.tank_id,
+        )
 
 
 class StatsCache:
