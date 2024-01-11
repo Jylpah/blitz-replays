@@ -1,0 +1,68 @@
+[GENERAL]
+reports = [ "TOTAL", "battle_result", "battle_type" ]
+
+[COLUMNS]
+
+
+[[FIELDS]]
+
+[[FIELDS.default]]
+name = "Battles"
+# filter = "all:all"
+metric = "count"
+# fields = "exp"
+format = "integer"
+
+[[FIELDS.default]]
+name = "WR"
+filter = "player:default"
+metric = "average_if"
+fields = "battle_results=1"
+format = "%.2"
+
+[[FIELDS.default]]
+name = "DPB"
+filter = "player:default"
+metric = "average"
+fields = "player.damage_made"
+format = "integer"
+
+[[FIELDS.default]]
+name = "KPB"
+filter = "player:default"
+metric = "average"
+fields = "player.enemies_destroyed"
+format = "float.1"
+
+[[FIELDS.default]]
+name = "Spot"
+filter = "player:default"
+metric = "average"
+fields = "player.enemies_spotted"
+format = "float.2"
+
+
+[[FIELDS.default]]
+name = "Top tier"
+filter = "player:default"
+metric = "average_if"
+fields = "top_tier=1"
+format = "%"
+
+[[FIELDS.default]]
+name = "DR"
+filter = "player:default"
+metric = "ratio"
+fields = "player.damage_made,player.damage_received"
+format = "float.2"
+
+[[FIELDS.default]]
+name = "Surv%"
+filter = "player:default"
+metric = "average_if"
+fields = "battle_results=1"
+format = "%.2"
+
+
+            # "allies_wins",
+            # "enemies_wins",
