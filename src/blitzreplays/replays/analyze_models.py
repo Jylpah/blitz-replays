@@ -1,12 +1,25 @@
 import logging
-from typing import List, Self, Dict, Tuple, Set, ClassVar, Type, Literal, Iterable
+from typing import (
+    List,
+    Self,
+    Dict,
+    Tuple,
+    Set,
+    ClassVar,
+    Type,
+    Optional,
+    Literal,
+    # get_args,
+    Iterable,
+)
 from pydantic import Field, model_validator
 from abc import abstractmethod
 from itertools import product
 from asyncio import Lock
 from enum import StrEnum
 from dataclasses import dataclass, field as data_field
-
+from re import compile, match
+import re
 from pyutils import IterableQueue, EventCounter
 from pydantic_exportables import JSONExportable, JSONExportableRootDict, Idx
 
@@ -143,7 +156,7 @@ class PlayerStats(JSONExportable):
     @classmethod
     def from_tank_stats(
         cls, stats=Iterable[TankStat], tier: int = 0
-    ) -> "PlayerStats" | None:
+    ) -> Optional["PlayerStats"]:
         """
         Create an aggregate PlayerStats from a list of Iterable[TankStats]
 
@@ -596,6 +609,7 @@ class EnrichedReplay(Replay):
     plat_mate: List[AccountId] = Field(default_factory=list)
     battle_tier: int = 0
     map: Map | None = None
+    top_tier: bool = False
 
     @model_validator(mode="after")
     def read_players_dict(self) -> Self:
@@ -658,6 +672,10 @@ class EnrichedReplay(Replay):
                 self.battle_result = EnumBattleResult.win
         else:
             raise ValueError(f"no account_id={player} in the replay")
+
+        # set top_tier
+        if (player_tank := self.players_dict[player].tank) is not None:
+            self.top_tier = player_tank.tier == self.battle_tier
 
         # set platoon mate
         if self.players_dict[self.player].squad_index is not None:
@@ -831,6 +849,7 @@ class Metric:
             "damage_blocked",
             "damage_made",
             "damage_received",
+            "death_reason",
             "distance_travelled",
             "enemies_damaged",
             "enemies_destroyed",
@@ -855,7 +874,8 @@ class Metric:
         ]
     ]
 
-    _fields: Set[str] = set(_player_fields + _replay_fields)
+    # _fields: ClassVar[Set[str]] = data_field(default_factory=set)
+    _fields: ClassVar[Set[str]] = {f for f in _player_fields + _replay_fields}
 
     def rm_prefix(self, field: str) -> str:
         """Remove xxxx. from the beginning of the field"""
@@ -864,14 +884,16 @@ class Metric:
         else:
             return field
 
-    def __post__init__(self):
-        for fld in self.field.split(","):
-            if fld not in self._fields:
-                raise ValueError(f"field '{fld}' is not found in replays")
-        if (
-            "," not in self.field
-        ):  # multi-fields have be dealt in each child class separately
-            self.field = self.rm_prefix(self.field)
+    # def __post_init__(self):
+    #     self._fields.update(self._replay_fields)
+    #     self._fields.update(self._player_fields)
+    # for fld in self.field.split(","):
+    #     if fld not in self._fields:
+    #         raise ValueError(f"field '{fld}' is not found in replays")
+    # if (
+    #     "," not in self.field
+    # ):  # multi-fields have be dealt in each child class separately
+    #     self.field = self.rm_prefix(self.field)
 
     @abstractmethod
     def calc(self, replay: EnrichedReplay) -> ValueType:
@@ -922,7 +944,7 @@ class Metrics:
         try:
             team_filter: str | None = None
             group_filter: str | None = None
-            key: List[str] = keystr.split("-")
+            key: List[str] = keystr.split(":")
             if len(key) == 2:
                 ops, fields = key
             elif len(key) == 4:
@@ -931,22 +953,10 @@ class Metrics:
                 raise ValueError(f"invalid metric key: {keystr}")
 
             if keystr not in self.db:
-                metric: Type[Metric] = CountMetric
-                match ops:
-                    case "count":
-                        metric = CountMetric
-                    case "sum":
-                        metric = SumMetric
-                    case "avg":
-                        metric = AverageMetric
-                    case "min":
-                        metric = MinMetric
-                    case "max":
-                        metric = MaxMetric
-                    case "ratio":
-                        metric = RatioMetric
-                    case _:
-                        raise ValueError(f"unsupported field operation key: {ops}")
+                try:
+                    metric: Type[Metric] = self.measures[ops]
+                except KeyError:
+                    raise ValueError(f"unsupported field metric: {ops}")
                 if team_filter is not None and group_filter is not None:
                     self.db[keystr] = metric(
                         filter=PlayerFilter(
@@ -971,8 +981,10 @@ class Metrics:
         return list(cls.measures.keys())
 
 
+@dataclass
 class CountMetric(Metric):
     operation = "count"
+    field = "exp"
 
     def calc(self, replay: EnrichedReplay) -> ValueType:
         if self.filter is None:
@@ -990,6 +1002,7 @@ class CountMetric(Metric):
 Metrics.register(CountMetric)
 
 
+@dataclass
 class SumMetric(Metric):
     operation = "sum"
 
@@ -1023,8 +1036,9 @@ class SumMetric(Metric):
 Metrics.register(SumMetric)
 
 
+@dataclass
 class AverageMetric(SumMetric):
-    operation = "avg"
+    operation = "average"
 
     def calc(self, replay: EnrichedReplay) -> ValueType:
         if self.filter is None:
@@ -1055,7 +1069,80 @@ class AverageMetric(SumMetric):
 
 Metrics.register(AverageMetric)
 
+CmpOps = Literal["eq", "gt", "lt", "gte", "lte"]
 
+
+@dataclass
+class AverageIfMetric(SumMetric):
+    operation = "average_if"
+
+    _if_value: float = 1
+    _if_ops: CmpOps = "eq"
+
+    _field_re: ClassVar[re.Pattern] = compile(r"^([a-z_.]+)([<=>])(-?[0-9.])$")
+
+    def __post_init__(self):
+        # super().__post_init__(self)
+        try:
+            if (m := match(self._field_re, self.field)) is None:
+                raise ValueError(f"invalid 'fields' specification: {self.field}")
+
+            self.field = self.rm_prefix(m.group(1))
+            match m.group(2):
+                case "=":
+                    self._if_ops = "eq"
+                case ">":
+                    self._if_ops = "gt"
+                case "<":
+                    self._if_ops = "lt"
+                case other:
+                    raise ValueError(f"invalid comparison operator {other}")
+            self._if_value = float(m.group(3))
+
+        except Exception as err:
+            error(f"invalid field config: {self.field}")
+            error(err)
+            raise
+
+    def _test_if(self, value: int | float) -> int:
+        match self._if_ops:
+            case "eq":
+                return int(value == self._if_value)
+            case "gt":
+                return int(value > self._if_value)
+            case "lt":
+                return int(value < self._if_value)
+            case other:
+                raise ValueError(f"invalid IF operation: {other}")
+
+    def calc(self, replay: EnrichedReplay) -> ValueType:
+        if self.filter is None:
+            try:
+                return self._test_if(getattr(replay, self.field)), 1
+            except AttributeError:
+                debug(f"not attribute '{self.field}' found in replay: {replay.title}'")
+                return 0, 0
+        else:
+            res: int = 0
+            n: int = 0
+            for p in replay.get_players(self.filter):
+                try:
+                    res += self._test_if(getattr(replay.players_dict[p], self.field))
+                    n += 1
+                except AttributeError:
+                    debug(
+                        f"not attribute 'players_data.{self.field}' found in replay: {replay.title}'"
+                    )
+            return res, n
+
+    def value(self, value: ValueType) -> float:
+        v: int | float | str = value[0]
+        if isinstance(v, str):
+            raise TypeError("value cannot be string")
+        return v / value[1]
+
+
+@dataclass
 class MinMetric(Metric):
     """
     Metric for finding min value
@@ -1084,6 +1171,7 @@ class MinMetric(Metric):
 Metrics.register(MinMetric)
 
 
+@dataclass
 class MaxMetric(Metric):
     """
     Metric for finding max value
@@ -1112,6 +1200,7 @@ class MaxMetric(Metric):
 Metrics.register(MaxMetric)
 
 
+@dataclass
 class RatioMetric(SumMetric):
     operation = "ratio"
 
@@ -1120,8 +1209,8 @@ class RatioMetric(SumMetric):
     _is_player_field_value: bool = False
     _is_player_field_div: bool = False
 
-    def __post__init__(self):
-        super().__post__init__(self)
+    def __post_init__(self):
+        super().__post_init__(self)
         try:
             self._value_field, self._div_field = self.field.split(",")
             if len(parts := self._value_field.split(".")) == 2:
