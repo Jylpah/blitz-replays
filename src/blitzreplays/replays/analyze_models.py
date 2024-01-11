@@ -150,6 +150,54 @@ class PlayerStats(JSONExportable):
         return PlayerStats(account_id=stats.account_id)
 
 
+class TankStatsDict(JSONExportableRootDict[PlayerTankStat]):
+    """
+    Helper class to store tank stats in a dict vs list for search performance
+    """
+
+    @classmethod
+    def from_WGApiWoTBlitzTankStats(
+        cls, api_stats: WGApiWoTBlitzTankStats
+    ) -> "TankStatsDict":
+        res = cls()
+        # tank_stats: list[TankStat] | None
+
+        if api_stats.data is not None:
+            try:
+                if (tank_stats := list(api_stats.data.values())[0]) is not None:
+                    for tank_stat in tank_stats:
+                        if (
+                            pts := PlayerTankStat.from_obj(tank_stat, in_type=TankStat)
+                        ) is not None:
+                            res[tank_stat.tank_id] = pts
+            except KeyError:
+                debug("no stats in WG API tank stats")
+        return res
+
+    def get_many(self, tank_ids: Iterable[TankId]) -> Set[PlayerTankStat]:
+        res: Set[PlayerTankStat] = set()
+        for tank_id in tank_ids:
+            res.add(self.root[tank_id])
+        return res
+
+    def get_player_stats(self) -> PlayerStats | None:
+        return PlayerStats.from_tank_stats(self.root.values(), tier=0)
+
+    def get_tank_stat(self, tank_id: TankId) -> PlayerStats | None:
+        try:
+            return PlayerStats.from_tank_stat(self.root[tank_id])
+        except Exception as err:
+            error(err)
+        return None
+
+    def get_tank_stats(
+        self, tank_ids: Iterable[TankId], tier: int = 0
+    ) -> PlayerStats | None:
+        return PlayerStats.from_tank_stats(
+            [self.root[tank_id] for tank_id in tank_ids], tier=tier
+        )
+
+
 @dataclass
 class StatsQuery:
     """Class for defining player stats query"""
