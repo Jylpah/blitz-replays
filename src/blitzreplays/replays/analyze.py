@@ -6,7 +6,11 @@ import logging
 from pathlib import Path
 from configparser import ConfigParser
 from alive_progress import alive_bar  # type: ignore
-
+from importlib.resources.abc import Traversable
+from importlib.resources import as_file
+import importlib
+from tomlkit.toml_file import TOMLFile
+from tomlkit.toml_document import TOMLDocument
 from pyutils import FileQueue, EventCounter, AsyncTyper, IterableQueue
 from pyutils.utils import set_config
 from blitzmodels import (
@@ -54,8 +58,43 @@ def callback_paths(value: Optional[list[Path]]) -> list[Path]:
 
 
 @app.callback()
-def analyze() -> None:
-    pass
+def analyze(
+    ctx: Context,
+    analyze_config_fn: Annotated[
+        Optional[str],
+        "--analyze-config",
+        Option(
+            default=None,
+            show_default=False,
+            help="TOML config file for 'analyze' reports",
+        ),
+    ],
+) -> None:
+    analyze_config: TOMLDocument | None = None
+    try:
+        config: ConfigParser = ctx.obj["config"]
+        if analyze_config_fn is None:
+            def_config: Traversable = importlib.resources.files(
+                "blitzreplays.replays"
+            ).joinpath("config.toml")  # REFACTOR in Python 3.12
+            with as_file(def_config) as default_config:
+                analyze_config_fn = set_config(
+                    config,
+                    str(default_config.resolve()),
+                    "REPLAYS",
+                    "analyze_config",
+                    None,
+                )
+                analyze_config_file = TOMLFile(analyze_config_fn)
+                analyze_config = analyze_config_file.read()
+
+    except KeyError as err:
+        error(f"could not read all the params: {err}")
+        typer.Exit(code=1)
+        assert False, "trick Mypy..."
+    except Exception as err:
+        error(err)
+        typer.Exit(code=2)
 
 
 @app.async_command()
@@ -120,7 +159,7 @@ async def files(
 
     except KeyError as err:
         error(f"could not read all the params: {err}")
-        typer.Exit(code=1)
+        typer.Exit(code=2)
         assert False, "trick Mypy..."
 
     stats = EventCounter("Upload replays")
@@ -196,7 +235,7 @@ async def analyze_replays(
     """
     stats = EventCounter("Analyze")
     async for replay in replayQ:
-        replay = stats_cache.add_stats(replay)
+        stats_cache.add_stats(replay)
     return stats
 
 
