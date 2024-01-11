@@ -68,36 +68,96 @@ class PlayerFilter:
 
 
 StatsType = Literal["player", "tier", "tank"]
+StatsMeasure = Literal["wr", "avgdmg", "battles"]
+
+
+class PlayerTankStat(TankStat):
+    """Helper class for TankStatsDict"""
+
+    @property
+    def index(self) -> Idx:
+        """return backend index"""
+        return self.tank_id
 
 
 class PlayerStats(JSONExportable):
     # stat_type: StatsType
-    account_id: int
+    account_id: AccountId
     tank_id: int = 0
     tier: int = 0
+
     wr: float = 0
     avgdmg: float = 0
     battles: int = 0
-    tier_wr: float = 0
-    tier_avgdmg: float = 0
-    tier_battles: int = 0
-    tank_wr: float = 0
-    tank_avgdmg: float = 0
-    tank_battles: int = 0
+    # tier_wr: float = 0
+    # tier_avgdmg: float = 0
+    # tier_battles: int = 0
+    # tank_wr: float = 0
+    # tank_avgdmg: float = 0
+    # tank_battles: int = 0
 
     # @property
     # def key(self) -> str:
     #     return StatsCache.stat_key(self.account_id, self.tier, self.tank_id)
+
+    @property
+    def stats_type(self) -> StatsType:
+        if self.tank_id == 0 and self.tier == 0:
+            return "player"
+        elif self.tank_id > 0:
+            return "tank"
+        elif self.tier > 0:
+            return "tier"
+        else:
+            raise ValueError("player stats record has invalid value")
+
+    def get(self, stats_type: StatsType, measure: StatsMeasure) -> int | float:
+        """get stats measure from the PlayerStats instance. Returns '0' if error or no stat"""
+        if stats_type != self.stats_type:
+            error(f"wrong type of stats record: {self.stats_type} != {stats_type}")
+        return getattr(self, measure, 0)
 
     @classmethod
     def from_tank_stat(cls, ts=TankStat) -> "PlayerStats":
         return PlayerStats(
             account_id=ts.account_id,
             tank_id=ts.tank_id,
-            tank_wr=ts.all.wins / ts.all.battles,
-            tank_avgdmg=ts.all.damage_dealt / ts.all.battles,
-            tank_battles=ts.all.battles,
+            wr=ts.all.wins / ts.all.battles,
+            avgdmg=ts.all.damage_dealt / ts.all.battles,
+            battles=ts.all.battles,
         )
+
+    @classmethod
+    def from_tank_stats(
+        cls, stats=Iterable[TankStat], tier: int = 0
+    ) -> "PlayerStats" | None:
+        """
+        Create an aggregate PlayerStats from a list of Iterable[TankStats]
+
+        Creates tank
+        """
+        try:
+            ts: TankStat = next(stats)
+            res: PlayerStats = PlayerStats(
+                account_id=ts.account_id,
+                tier=tier,
+                wr=ts.all.wins / ts.all.battles,
+                avgdmg=ts.all.damage_dealt / ts.all.battles,
+                battles=ts.all.battles,
+            )
+            for ts in stats:
+                try:
+                    res.battles = res.battles + ts.all.battles
+                    res.wr = res.wr + ts.all.wins
+                    res.avgdmg = res.avgdmg + ts.all.damage_dealt
+                except Exception as err:
+                    error(err)
+            res.wr = res.wr / res.battles
+            res.avgdmg = res.avgdmg / res.battles
+            return res
+        except Exception as err:
+            error(err)
+        return None
 
     @classmethod
     def tank_stats(cls, stats: List[TankStat]) -> List["PlayerStats"]:
