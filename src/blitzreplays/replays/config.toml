@@ -41,7 +41,6 @@ metric = "average"
 fields = "player.enemies_spotted"
 format = "float.2"
 
-
 [[FIELDS.default]]
 name = "Top tier"
 filter = "player:default"
@@ -63,6 +62,34 @@ metric = "average_if"
 fields = "battle_results=1"
 format = "%.2"
 
+[[FIELDS.default]]
+name = "Allies WR%"
+filter = "allies:default"
+metric = "average"
+fields = "players.wr"
+format = "%.1"
 
-            # "allies_wins",
-            # "enemies_wins",
+[[FIELDS.default]]
+name = "Enemies WR"
+filter = "enemies:default"
+metric = "average"
+fields = "players.wr"
+format = "%.1"
+
+[[REPORTS]]
+
+[REPORT.total]
+name = "All battles"
+categorization = "total"
+
+[REPORT.battle_result]
+name = "Battle result"
+categorization = "category"
+field = "battle_result"
+categories = ["Loss", "Win", "Draw"]
+
+[REPORT.mastery_badge]
+name = "Battle class"
+categorization = "category"
+field = "mastery_badge"
+categories = ["-", "3rd Class", "2nd Class", "1st Class", "Mastery"]
