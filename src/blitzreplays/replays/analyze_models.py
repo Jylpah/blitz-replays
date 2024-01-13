@@ -716,85 +716,83 @@ class EnrichedReplay(Replay):
         Get players matching the filter from the replay
         """
         players: List[int] = list()
-        if filter.team == EnumTeamFilter.player:
+        try:
+            if filter.team == EnumTeamFilter.player:
+                match filter.group:
+                    case EnumGroupFilter.default:
+                        return [self.player]
+                    case EnumGroupFilter.platoon:
+                        return self.plat_mate
+                    case EnumGroupFilter.all:
+                        return [self.player] + self.plat_mate
+                    case EnumGroupFilter.solo:
+                        if len(self.plat_mate) == 0:
+                            return [self.player]
+
+            elif filter.group == EnumGroupFilter.all:
+                match filter.team:
+                    case EnumTeamFilter.allies:
+                        return [self.player] + self.plat_mate + self.allies
+                    case EnumTeamFilter.enemies:
+                        return self.enemies
+                    case EnumTeamFilter.all:
+                        return (
+                            [self.player] + self.plat_mate + self.allies + self.enemies
+                        )
+
+            elif filter.team == EnumTeamFilter.allies:
+                players = self.allies
+            elif filter.team == EnumTeamFilter.enemies:
+                players = self.enemies
+            elif filter.team == EnumTeamFilter.all:
+                players = self.allies + self.enemies
+
+            res: list[int] = list()
+            data: EnrichedPlayerData
+
             match filter.group:
                 case EnumGroupFilter.default:
-                    return [self.player]
-                case EnumGroupFilter.platoon:
-                    return self.plat_mate
-                case EnumGroupFilter.all:
-                    return [self.player] + self.plat_mate
+                    return players
                 case EnumGroupFilter.solo:
-                    if len(self.plat_mate) == 0:
-                        return [self.player]
+                    return [
+                        player
+                        for player in players
+                        if self.players_dict[player].squad_index is None
+                    ]
+                case EnumGroupFilter.platoon:
+                    return [
+                        player
+                        for player in players
+                        if self.players_dict[player].squad_index is not None
+                    ]
 
-        elif filter.group == EnumGroupFilter.all:
-            match filter.team:
-                case EnumTeamFilter.allies:
-                    return [self.player] + self.plat_mate + self.allies
-                case EnumTeamFilter.enemies:
-                    return self.enemies
-                case EnumTeamFilter.all:
-                    return [self.player] + self.plat_mate + self.allies + self.enemies
+                case (
+                    EnumGroupFilter.tank_destroyer
+                    | EnumGroupFilter.light_tank
+                    | EnumGroupFilter.medium_tank
+                    | EnumVehicleTypeStr.heavy_tank
+                ):
+                    tank_type = EnumVehicleTypeStr[filter.group.name]
+                    for player in players:
+                        data = self.players_dict[player]
+                        if data.tank is not None and data.tank.type == tank_type:
+                            res.append(player)
+                    return res
 
-        elif filter.team == EnumTeamFilter.allies:
-            players = self.allies
-        elif filter.team == EnumTeamFilter.enemies:
-            players = self.enemies
-        elif filter.team == EnumTeamFilter.all:
-            players = self.allies + self.enemies
-
-        res: list[int] = list()
-        data: EnrichedPlayerData
-
-        match filter.group:
-            case EnumGroupFilter.default:
-                return players
-            case EnumGroupFilter.solo:
-                return [
-                    player
-                    for player in players
-                    if self.players_dict[player].squad_index is None
-                ]
-            case EnumGroupFilter.platoon:
-                return [
-                    player
-                    for player in players
-                    if self.players_dict[player].squad_index is not None
-                ]
-
-            case (
-                EnumGroupFilter.tank_destroyer
-                | EnumGroupFilter.light_tank
-                | EnumGroupFilter.medium_tank
-                | EnumVehicleTypeStr.heavy_tank
-            ):
-                tank_type = EnumVehicleTypeStr[filter.group.name]
-                # match filter.group:
-                #     case EnumGroupFilter.tank_destroyer:
-                #         tank_type = EnumVehicleTypeStr.tank_destroyer
-                #     case EnumGroupFilter.medium_tank:
-                #         tank_type = EnumVehicleTypeStr.medium_tank
-                #     case EnumGroupFilter.light_tank:
-                #         tank_type = EnumVehicleTypeStr.light_tank
-                for player in players:
-                    data = self.players_dict[player]
-                    if data.tank is not None and data.tank.type == tank_type:
-                        res.append(player)
-                return res
-
-            case EnumGroupFilter.top:
-                for player in players:
-                    data = self.players_dict[player]
-                    if data.tank is not None and data.tank.tier == self.battle_tier:
-                        res.append(player)
-                return res
-            case EnumGroupFilter.bottom:
-                for player in players:
-                    data = self.players_dict[player]
-                    if data.tank is not None and data.tank.tier < self.battle_tier:
-                        res.append(player)
-                return res
+                case EnumGroupFilter.top:
+                    for player in players:
+                        data = self.players_dict[player]
+                        if data.tank is not None and data.tank.tier == self.battle_tier:
+                            res.append(player)
+                    return res
+                case EnumGroupFilter.bottom:
+                    for player in players:
+                        data = self.players_dict[player]
+                        if data.tank is not None and data.tank.tier < self.battle_tier:
+                            res.append(player)
+                    return res
+        except Exception as err:
+            error(err)
         return []
 
     def get_stats_queries(self, stats_type: StatsType) -> Set[StatsQuery]:
@@ -839,15 +837,16 @@ class ValueStore:
 
 
 ValueType = Tuple[int | float, int | float]
+FieldKey = str
 
 
 @dataclass
-class Metric:
+class ReportField:
     """
-    An abstract base class for "metrics" i.e. different measures what can be show on
+    An abstract base class for "report fields" i.e. different measures what can be show on
     a single column on the analyzer reports.
 
-    A concrete example: an AverageMetric() for a enemy teams' average win rate.
+    A concrete example: an AverageField() for a enemy teams' average win rate.
     """
 
     operation: ClassVar[str]
@@ -938,7 +937,7 @@ class Metric:
         raise NotImplementedError
 
     @property
-    def key(self) -> str:
+    def key(self) -> FieldKey:
         if self.filter is None:
             return "-".join([self.operation, self.fields])
         else:
@@ -958,15 +957,15 @@ class Metric:
 
 
 @dataclass
-class Metrics:
+class FieldStore:
     """ """
 
-    measures: ClassVar[Dict[str, Type[Metric]]] = dict()
-    db: Dict[str, Metric] = data_field(default_factory=dict)
+    registry: ClassVar[Dict[str, Type[ReportField]]] = dict()
+    db: Dict[FieldKey, ReportField] = data_field(default_factory=dict)
 
     @classmethod
-    def register(cls, measure: Type[Metric]):
-        cls.measures[measure.operation] = measure
+    def register(cls, measure: Type[ReportField]):
+        cls.registry[measure.operation] = measure
 
     def create(
         self,
@@ -975,15 +974,16 @@ class Metrics:
         fields: str,
         fmt: str,
         filter: str | None = None,
-    ) -> Metric:
-        """Create a Metric from specification
+    ) -> ReportField:
+        """Create a Field from specification
 
-        Format is:
-        filter: team_filter:group_filter
-        fields: replay_field,player.player_field
+        Format:
+
+        * filter: team_filter:group_filter
+        * fields: replay_field,player.player_field
         """
         try:
-            key: str = "-".join([operation, fields])
+            key: FieldKey = "-".join([operation, fields])
             player_filter: PlayerFilter | None = None
             if filter is not None:
                 player_filter = PlayerFilter.from_str(filter=filter)
@@ -991,7 +991,7 @@ class Metrics:
 
             if key not in self.db:
                 try:
-                    metric: Type[Metric] = self.measures[operation]
+                    metric: Type[ReportField] = self.registry[operation]
                 except KeyError:
                     raise ValueError(f"unsupported metric: {operation}")
                 self.db[key] = metric(
@@ -1008,11 +1008,11 @@ class Metrics:
 
     @classmethod
     def ops(cls) -> List[str]:
-        return list(cls.measures.keys())
+        return list(cls.registry.keys())
 
 
 @dataclass
-class CountMetric(Metric):
+class CountField(ReportField):
     operation = "count"
     fields = "exp"
 
@@ -1029,11 +1029,11 @@ class CountMetric(Metric):
         raise TypeError("value is not int")
 
 
-Metrics.register(CountMetric)
+FieldStore.register(CountField)
 
 
 @dataclass
-class SumMetric(Metric):
+class SumField(ReportField):
     operation = "sum"
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
@@ -1060,11 +1060,11 @@ class SumMetric(Metric):
         return value.value
 
 
-Metrics.register(SumMetric)
+FieldStore.register(SumField)
 
 
 @dataclass
-class AverageMetric(SumMetric):
+class AverageField(SumField):
     operation = "average"
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
@@ -1091,13 +1091,13 @@ class AverageMetric(SumMetric):
         return value.value / value.n
 
 
-Metrics.register(AverageMetric)
+FieldStore.register(AverageField)
 
 CmpOps = Literal["eq", "gt", "lt", "gte", "lte"]
 
 
 @dataclass
-class AverageIfMetric(SumMetric):
+class AverageIfField(SumField):
     operation = "average_if"
 
     _if_value: float = 1
@@ -1164,9 +1164,9 @@ class AverageIfMetric(SumMetric):
 
 
 @dataclass
-class MinMetric(Metric):
+class MinField(ReportField):
     """
-    Metric for finding min value
+    Field for finding min value
     """
 
     operation = "min"
@@ -1186,13 +1186,13 @@ class MinMetric(Metric):
         return value.value
 
 
-Metrics.register(MinMetric)
+FieldStore.register(MinField)
 
 
 @dataclass
-class MaxMetric(Metric):
+class MaxField(ReportField):
     """
-    Metric for finding max value
+    Field for finding max value
     """
 
     operation = "max"
@@ -1212,11 +1212,11 @@ class MaxMetric(Metric):
         return value.value
 
 
-Metrics.register(MaxMetric)
+FieldStore.register(MaxField)
 
 
 @dataclass
-class RatioMetric(SumMetric):
+class RatioField(SumField):
     operation = "ratio"
 
     _value_field: str = ""
@@ -1283,7 +1283,7 @@ class RatioMetric(SumMetric):
         return value.value / value.n
 
 
-Metrics.register(RatioMetric)
+FieldStore.register(RatioField)
 
 
 ############################################################################################
@@ -1312,10 +1312,15 @@ class Category:
     #         self.values[field] = ValueStore()
 
     def record(self, field: str, value: ValueStore | str) -> None:
-        if isinstance(value, str):
-            self.strings[field] = value
-        else:
-            self.values[field].record(value)
+        try:
+            if isinstance(value, str):
+                self.strings[field] = value
+            else:
+                self.values[field].record(value)
+        except KeyError as err:
+            error(err)
+        except Exception as err:
+            error(err)
         return None
 
     def get(self, field: str) -> ValueStore | str:
@@ -1344,6 +1349,6 @@ _ratio_fields_value: List[str] = []
 _ratio_fields_div: List[str] = []
 
 for team, group, ops, field in product(
-    EnumTeamFilter, EnumGroupFilter, Metrics.ops(), Metric._replay_fields
+    EnumTeamFilter, EnumGroupFilter, FieldStore.ops(), ReportField._replay_fields
 ):
     print(f"{team}-{group}-{ops}-{field}")
