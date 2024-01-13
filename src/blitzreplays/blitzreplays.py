@@ -12,7 +12,7 @@ from pyutils import MultilevelFormatter, AsyncTyper
 from pyutils.utils import set_config
 from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
 
-from blitzreplays.replays import upload
+from blitzreplays.replays import upload, analyze
 
 logger = logging.getLogger()
 error = logger.error
@@ -27,6 +27,7 @@ debug = logger.debug
 ##############################################
 
 app = AsyncTyper()
+app.add_typer(analyze.app, name="analyze")
 app.async_command(
     name="upload",
 )(upload.upload)
