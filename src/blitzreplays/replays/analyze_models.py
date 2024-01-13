@@ -22,6 +22,7 @@ from re import compile, match
 import re
 from pyutils import IterableQueue, EventCounter
 from pydantic_exportables import JSONExportable, JSONExportableRootDict, Idx
+from collections import defaultdict
 
 from blitzmodels import (
     Tank,
@@ -32,7 +33,7 @@ from blitzmodels import (
     Map,
     WGApi,
     TankStat,
-    AccountInfo,
+    # AccountInfo,
     AccountId,
     TankId,
 )
@@ -72,13 +73,16 @@ class EnumGroupFilter(StrEnum):
 class PlayerFilter:
     team: EnumTeamFilter
     group: EnumGroupFilter
-    # _group = TypeAdapter(Literal["default", "all","solo", "plat", "lt", "mt", "ht", "td", "top", "bottom" ])
 
     def __str__(self) -> str:
         return f"{self.team}:{self.group}"
 
+    @property
+    def key(self) -> str:
+        return self.__str__()
+
     @classmethod
-    def from_str(cls, filter: str) -> "PlayerFilter":
+    def from_str(cls, filter: str) -> Self:
         team: EnumTeamFilter
         group: EnumGroupFilter
         filters: list[str] = filter.split(":")
@@ -89,8 +93,8 @@ class PlayerFilter:
             team = EnumTeamFilter(filters[0])
             group = EnumGroupFilter(filters[1])
         else:
-            raise ValueError("incorrect filter format: {filter} != '<team>:<group>'")
-        return PlayerFilter(team=team, group=group)
+            raise ValueError(f"incorrect filter format: {filter} != '<team>:<group>'")
+        return cls(team=team, group=group)
 
 
 StatsType = Literal["player", "tier", "tank"]
@@ -144,8 +148,11 @@ class PlayerStats(JSONExportable):
         return getattr(self, measure, 0)
 
     @classmethod
-    def from_tank_stat(cls, ts=TankStat) -> "PlayerStats":
-        return PlayerStats(
+    def from_tank_stat(cls, ts=TankStat) -> Self:
+        """
+        Create PlayerStats from a TankStat for a tank
+        """
+        return cls(
             account_id=ts.account_id,
             tank_id=ts.tank_id,
             wr=ts.all.wins / ts.all.battles,
@@ -154,9 +161,7 @@ class PlayerStats(JSONExportable):
         )
 
     @classmethod
-    def from_tank_stats(
-        cls, stats=Iterable[TankStat], tier: int = 0
-    ) -> Optional["PlayerStats"]:
+    def from_tank_stats(cls, stats=Iterable[TankStat], tier: int = 0) -> Optional[Self]:
         """
         Create an aggregate PlayerStats from a list of Iterable[TankStats]
 
@@ -164,7 +169,7 @@ class PlayerStats(JSONExportable):
         """
         try:
             ts: TankStat = next(stats)
-            res: PlayerStats = PlayerStats(
+            res = cls(
                 account_id=ts.account_id,
                 tier=tier,
                 wr=ts.all.wins / ts.all.battles,
@@ -185,55 +190,54 @@ class PlayerStats(JSONExportable):
             error(err)
         return None
 
-    @classmethod
-    def tank_stats(cls, stats: List[TankStat]) -> List["PlayerStats"]:
-        """Create PlayerStats from WG API Tank Stats for each tank"""
-        res: List[PlayerStats] = list()
-        for ts in stats:
-            res.append(PlayerStats.from_tank_stat(ts))
-        return res
+    # @classmethod
+    # def tank_stats(cls, stats: List[TankStat]) -> List[Self]:
+    #     """Create PlayerStats from WG API Tank Stats for each tank"""
+    #     res: List[Self] = list()
+    #     for ts in stats:
+    #         res.append(cls.from_tank_stat(ts))
+    #     return res
 
-    @classmethod
-    def tier_stats(
-        cls, account_id: AccountId, stats: List[TankStat], tier: int
-    ) -> "PlayerStats":
-        """
-        Create PlayerStats from WG API Tank Stats
+    # @classmethod
+    # def tier_stats(
+    #     cls, account_id: AccountId, stats: List[TankStat], tier: int
+    # ) -> Self:
+    #     """
+    #     Create PlayerStats from WG API Tank Stats
 
-        Assumes all the TankStats are for the same tier tanks
-        """
+    #     Assumes all the TankStats are for the same tier tanks
+    #     """
+    #     res = cls(account_id=account_id, tier=tier)
+    #     try:
+    #         for ts in stats:
+    #             res.battles = res.battles + ts.all.battles
+    #             res.wr = res.wr + ts.all.wins
+    #             res.avgdmg = res.avgdmg + ts.all.damage_dealt
 
-        res: PlayerStats = PlayerStats(account_id=account_id, tier=tier)
-        try:
-            for ts in stats:
-                res.battles = res.battles + ts.all.battles
-                res.wr = res.wr + ts.all.wins
-                res.avgdmg = res.avgdmg + ts.all.damage_dealt
+    #         res.wr = res.wr / res.battles
+    #         res.avgdmg = res.avgdmg / res.battles
+    #     except Exception as err:
+    #         debug(err)
+    #     return res
 
-            res.wr = res.wr / res.battles
-            res.avgdmg = res.avgdmg / res.battles
-        except Exception as err:
-            debug(err)
-        return res
+    # @classmethod
+    # def player_stats(cls, stats: AccountInfo) -> "PlayerStats":
+    #     """ "Create PlayerStats from WG API Tank Stats"""
 
-    @classmethod
-    def player_stats(cls, stats: AccountInfo) -> "PlayerStats":
-        """ "Create PlayerStats from WG API Tank Stats"""
-
-        try:
-            if (
-                stats.statistics is not None
-                and (ps := stats.statistics["all"]) is not None
-            ):
-                return PlayerStats(
-                    account_id=stats.account_id,
-                    wr=ps.wins / ps.battles,
-                    avgdmg=ps.damage_dealt / ps.battles,
-                    battles=ps.battles,
-                )
-        except KeyError:
-            debug(f"no player stats for account_id={stats.account_id}")
-        return PlayerStats(account_id=stats.account_id)
+    #     try:
+    #         if (
+    #             stats.statistics is not None
+    #             and (ps := stats.statistics["all"]) is not None
+    #         ):
+    #             return PlayerStats(
+    #                 account_id=stats.account_id,
+    #                 wr=ps.wins / ps.battles,
+    #                 avgdmg=ps.damage_dealt / ps.battles,
+    #                 battles=ps.battles,
+    #             )
+    #     except KeyError:
+    #         debug(f"no player stats for account_id={stats.account_id}")
+    #     return PlayerStats(account_id=stats.account_id)
 
 
 class TankStatsDict(JSONExportableRootDict[PlayerTankStat]):
@@ -604,6 +608,10 @@ class EnrichedPlayerData(PlayerData):
 
 
 class EnrichedReplay(Replay):
+    """
+    EnrichedReplay to store additional metadata for speed up and simplify replay analysis
+    """
+
     players_dict: Dict[AccountId, EnrichedPlayerData] = Field(default_factory=dict)
     player: AccountId = -1
     plat_mate: List[AccountId] = Field(default_factory=list)
@@ -613,8 +621,10 @@ class EnrichedReplay(Replay):
 
     @model_validator(mode="after")
     def read_players_dict(self) -> Self:
-        for data in self.players_data:
-            self.players_dict[data.dbid] = EnrichedPlayerData.model_validate(data)
+        for player_data in self.players_data:
+            self.players_dict[player_data.dbid] = EnrichedPlayerData.model_validate(
+                player_data
+            )
         self.players_data = list()
         return self
 
@@ -759,14 +769,14 @@ class EnrichedReplay(Replay):
                 | EnumGroupFilter.medium_tank
                 | EnumVehicleTypeStr.heavy_tank
             ):
-                tank_type = EnumVehicleTypeStr.heavy_tank
-                match filter.group:
-                    case EnumGroupFilter.tank_destroyer:
-                        tank_type = EnumVehicleTypeStr.tank_destroyer
-                    case EnumGroupFilter.medium_tank:
-                        tank_type = EnumVehicleTypeStr.medium_tank
-                    case EnumGroupFilter.light_tank:
-                        tank_type = EnumVehicleTypeStr.light_tank
+                tank_type = EnumVehicleTypeStr[filter.group.name]
+                # match filter.group:
+                #     case EnumGroupFilter.tank_destroyer:
+                #         tank_type = EnumVehicleTypeStr.tank_destroyer
+                #     case EnumGroupFilter.medium_tank:
+                #         tank_type = EnumVehicleTypeStr.medium_tank
+                #     case EnumGroupFilter.light_tank:
+                #         tank_type = EnumVehicleTypeStr.light_tank
                 for player in players:
                     data = self.players_dict[player]
                     if data.tank is not None and data.tank.type == tank_type:
@@ -800,7 +810,35 @@ class EnrichedReplay(Replay):
         return queries
 
 
-ValueType = Tuple[str | float | int, int | float]
+# @dataclass
+# class StringStore:
+#     value: str
+
+#     def get(self) -> str:
+#         return self.value
+
+#     def record(self, value: Self) -> None:
+#         raise ValueError("cannot overwrite StringStore")
+
+
+@dataclass
+class ValueStore:
+    """
+    ValueStore stores a single cell's value for the reports
+    """
+
+    value: int | float = 0
+    n: int | float = 0
+
+    # def get(self) -> Self:
+    #     return self
+
+    def record(self, value: Self):
+        self.value += value.value
+        self.n += value.n
+
+
+ValueType = Tuple[int | float, int | float]
 
 
 @dataclass
@@ -814,9 +852,9 @@ class Metric:
 
     operation: ClassVar[str]
 
-    field: str  # key or data.key
-    # name: str
-    # fmt: str
+    name: str
+    fields: str  # key, player.key or key,player.key
+    fmt: str
     filter: PlayerFilter | None = None
 
     _replay_fields: ClassVar[List[str]] = [
@@ -887,33 +925,31 @@ class Metric:
     # def __post_init__(self):
     #     self._fields.update(self._replay_fields)
     #     self._fields.update(self._player_fields)
-    # for fld in self.field.split(","):
+    # for fld in self.fields.split(","):
     #     if fld not in self._fields:
     #         raise ValueError(f"field '{fld}' is not found in replays")
     # if (
-    #     "," not in self.field
+    #     "," not in self.fields
     # ):  # multi-fields have be dealt in each child class separately
-    #     self.field = self.rm_prefix(self.field)
+    #     self.fields = self.rm_prefix(self.fields)
 
     @abstractmethod
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         raise NotImplementedError
 
     @property
     def key(self) -> str:
         if self.filter is None:
-            return "-".join([self.operation, self.field])
+            return "-".join([self.operation, self.fields])
         else:
-            return "-".join(
-                [self.filter.team, self.filter.group, self.operation, self.field]
-            )
+            return "-".join([self.operation, self.fields, self.filter.key])
 
     # @abstractmethod
     # def record(self, value: ValueType):
     #     raise NotImplementedError
 
     @abstractmethod
-    def value(self, value: ValueType) -> str | int | float:
+    def value(self, value: ValueStore) -> int | float:
         """Return value"""
         raise NotImplementedError
 
@@ -932,47 +968,41 @@ class Metrics:
     def register(cls, measure: Type[Metric]):
         cls.measures[measure.operation] = measure
 
-    def parse(self, keystr: str) -> Metric:
-        """Parse a config for a Metric
+    def create(
+        self,
+        name: str,
+        operation: str,
+        fields: str,
+        fmt: str,
+        filter: str | None = None,
+    ) -> Metric:
+        """Create a Metric from specification
 
         Format is:
-        player_measure: team_filter-group_filter-field_operation-fields
-        replay measure: field_operation-fields
-
-        where the 'key' has to be unique
+        filter: team_filter:group_filter
+        fields: replay_field,player.player_field
         """
         try:
-            team_filter: str | None = None
-            group_filter: str | None = None
-            key: List[str] = keystr.split(":")
-            if len(key) == 2:
-                ops, fields = key
-            elif len(key) == 4:
-                team_filter, group_filter, ops, fields = key
-            else:
-                raise ValueError(f"invalid metric key: {keystr}")
+            key: str = "-".join([operation, fields])
+            player_filter: PlayerFilter | None = None
+            if filter is not None:
+                player_filter = PlayerFilter.from_str(filter=filter)
+                key = f"{key}-{filter}"
 
-            if keystr not in self.db:
+            if key not in self.db:
                 try:
-                    metric: Type[Metric] = self.measures[ops]
+                    metric: Type[Metric] = self.measures[operation]
                 except KeyError:
-                    raise ValueError(f"unsupported field metric: {ops}")
-                if team_filter is not None and group_filter is not None:
-                    self.db[keystr] = metric(
-                        filter=PlayerFilter(
-                            team=EnumTeamFilter(team_filter),
-                            group=EnumGroupFilter(group_filter),
-                        ),
-                        field=fields,
-                    )
-                else:
-                    self.db[keystr] = metric(
-                        filter=None,
-                        field=fields,
-                    )
-            return self.db[keystr]
+                    raise ValueError(f"unsupported metric: {operation}")
+                self.db[key] = metric(
+                    name=name, filter=player_filter, fields=fields, fmt=fmt
+                )
+
+            return self.db[key]
         except Exception as err:
-            error(f"could not parse metric from: {keystr}")
+            error(
+                f"could not create metric: operation={operation}, filter={filter}, fields={fields}"
+            )
             error(err)
             raise err
 
@@ -984,16 +1014,16 @@ class Metrics:
 @dataclass
 class CountMetric(Metric):
     operation = "count"
-    field = "exp"
+    fields = "exp"
 
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
-            return 1, 1
+            return ValueStore(1, 1)
         else:
-            return len(replay.get_players(self.filter)), 1
+            return ValueStore(len(replay.get_players(self.filter)), 1)
 
-    def value(self, value: ValueType) -> int:
-        v: int | float | str = value[0]
+    def value(self, value: ValueStore) -> int:
+        v: int | float = value.value
         if isinstance(v, int):
             return v
         raise TypeError("value is not int")
@@ -1006,31 +1036,28 @@ Metrics.register(CountMetric)
 class SumMetric(Metric):
     operation = "sum"
 
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
-                return getattr(replay, self.field), 1
+                return ValueStore(getattr(replay, self.fields), 1)
             except AttributeError:
-                debug(f"not attribute '{self.field}' found in replay: {replay.title}'")
-                return 0, 0
+                debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
+                return ValueStore(0, 0)
         else:
             res: int = 0
             n: int = 0
             for p in replay.get_players(self.filter):
                 try:
-                    res += getattr(replay.players_dict[p], self.field)
+                    res += getattr(replay.players_dict[p], self.fields)
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute 'players_data.{self.field}' found in replay: {replay.title}'"
+                        f"not attribute 'players_data.{self.fields}' found in replay: {replay.title}'"
                     )
-            return res, n
+            return ValueStore(res, n)
 
-    def value(self, value: ValueType) -> int | float:
-        v: int | float | str = value[0]
-        if isinstance(v, str):
-            raise TypeError("value cannot be string")
-        return v
+    def value(self, value: ValueStore) -> int | float:
+        return value.value
 
 
 Metrics.register(SumMetric)
@@ -1040,31 +1067,28 @@ Metrics.register(SumMetric)
 class AverageMetric(SumMetric):
     operation = "average"
 
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
-                return getattr(replay, self.field), 1
+                return ValueStore(getattr(replay, self.fields), 1)
             except AttributeError:
-                debug(f"not attribute '{self.field}' found in replay: {replay.title}'")
-                return 0, 0
+                debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
+                return ValueStore(0, 0)
         else:
             res: int = 0
             n: int = 0
             for p in replay.get_players(self.filter):
                 try:
-                    res += getattr(replay.players_dict[p], self.field)
+                    res += getattr(replay.players_dict[p], self.fields)
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute 'players_data.{self.field}' found in replay: {replay.title}'"
+                        f"not attribute 'players_data.{self.fields}' found in replay: {replay.title}'"
                     )
-            return res, n
+            return ValueStore(res, n)
 
-    def value(self, value: ValueType) -> float:
-        v: int | float | str = value[0]
-        if isinstance(v, str):
-            raise TypeError("value cannot be string")
-        return v / value[1]
+    def value(self, value: ValueStore) -> float:
+        return value.value / value.n
 
 
 Metrics.register(AverageMetric)
@@ -1081,13 +1105,13 @@ class AverageIfMetric(SumMetric):
 
     _field_re: ClassVar[re.Pattern] = compile(r"^([a-z_.]+)([<=>])(-?[0-9.])$")
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # super().__post_init__(self)
         try:
-            if (m := match(self._field_re, self.field)) is None:
-                raise ValueError(f"invalid 'fields' specification: {self.field}")
+            if (m := match(self._field_re, self.fields)) is None:
+                raise ValueError(f"invalid 'fields' specification: {self.fields}")
 
-            self.field = self.rm_prefix(m.group(1))
+            self.fields = self.rm_prefix(m.group(1))
             match m.group(2):
                 case "=":
                     self._if_ops = "eq"
@@ -1100,7 +1124,7 @@ class AverageIfMetric(SumMetric):
             self._if_value = float(m.group(3))
 
         except Exception as err:
-            error(f"invalid field config: {self.field}")
+            error(f"invalid field config: {self.fields}")
             error(err)
             raise
 
@@ -1115,31 +1139,28 @@ class AverageIfMetric(SumMetric):
             case other:
                 raise ValueError(f"invalid IF operation: {other}")
 
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
-                return self._test_if(getattr(replay, self.field)), 1
+                return ValueStore(self._test_if(getattr(replay, self.fields)), 1)
             except AttributeError:
-                debug(f"not attribute '{self.field}' found in replay: {replay.title}'")
-                return 0, 0
+                debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
+                return ValueStore(0, 0)
         else:
             res: int = 0
             n: int = 0
             for p in replay.get_players(self.filter):
                 try:
-                    res += self._test_if(getattr(replay.players_dict[p], self.field))
+                    res += self._test_if(getattr(replay.players_dict[p], self.fields))
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute 'players_data.{self.field}' found in replay: {replay.title}'"
+                        f"not attribute 'players_data.{self.fields}' found in replay: {replay.title}'"
                     )
-            return res, n
+            return ValueStore(res, n)
 
-    def value(self, value: ValueType) -> float:
-        v: int | float | str = value[0]
-        if isinstance(v, str):
-            raise TypeError("value cannot be string")
-        return v / value[1]
+    def value(self, value: ValueStore) -> float:
+        return value.value / value.n
 
 
 @dataclass
@@ -1150,22 +1171,19 @@ class MinMetric(Metric):
 
     operation = "min"
 
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
-            return getattr(replay, self.field), 1
+            return ValueStore(getattr(replay, self.fields), 1)
         else:
             res: float = 10e8  # big enough
             n = 0
             for p in replay.get_players(self.filter):
-                res = min(getattr(replay.players_dict[p], self.field, 10.0e8), res)
+                res = min(getattr(replay.players_dict[p], self.fields, 10.0e8), res)
                 n += 1
-            return res, n
+            return ValueStore(res, n)
 
-    def value(self, value: ValueType) -> float | int:
-        v: int | float | str = value[0]
-        if isinstance(v, str):
-            raise TypeError("value cannot be string")
-        return v
+    def value(self, value: ValueStore) -> float | int:
+        return value.value
 
 
 Metrics.register(MinMetric)
@@ -1179,22 +1197,19 @@ class MaxMetric(Metric):
 
     operation = "max"
 
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
-            return getattr(replay, self.field), 1
+            return ValueStore(getattr(replay, self.fields), 1)
         else:
             res: float = -10e8  # small enough
             n = 0
             for p in replay.get_players(self.filter):
-                res = max(getattr(replay.players_dict[p], self.field, -1), res)
+                res = max(getattr(replay.players_dict[p], self.fields, -1), res)
                 n += 1
-            return res, n
+            return ValueStore(res, n)
 
-    def value(self, value: ValueType) -> float | int:
-        v: int | float | str = value[0]
-        if isinstance(v, str):
-            raise TypeError("value cannot be string")
-        return v
+    def value(self, value: ValueStore) -> float | int:
+        return value.value
 
 
 Metrics.register(MaxMetric)
@@ -1212,7 +1227,7 @@ class RatioMetric(SumMetric):
     def __post_init__(self):
         super().__post_init__(self)
         try:
-            self._value_field, self._div_field = self.field.split(",")
+            self._value_field, self._div_field = self.fields.split(",")
             if len(parts := self._value_field.split(".")) == 2:
                 self._is_player_field_value = True
                 self._value_field = parts[1]
@@ -1220,23 +1235,23 @@ class RatioMetric(SumMetric):
                 self._is_player_field_div = True
                 self._div_field = parts[1]
         except Exception as err:
-            error(f"invalid field config: {self.field}")
+            error(f"invalid field config: {self.fields}")
             error("'ratio' metric's field key is format 'value_field,divider_field'")
             error(err)
             raise
 
-    def calc(self, replay: EnrichedReplay) -> ValueType:
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
-                return getattr(replay, self._value_field), getattr(
-                    replay, self._div_field
+                return ValueStore(
+                    getattr(replay, self._value_field), getattr(replay, self._div_field)
                 )
             except AttributeError as err:
                 debug(
                     f"no attribute '{self._value_field}' or '{self._div_field}' found in replay: {replay.title}'"
                 )
                 error(err)
-                return 0, 0
+                return ValueStore(0, 0)
         else:
             val: float = 0
             div: float = 0
@@ -1262,16 +1277,60 @@ class RatioMetric(SumMetric):
                         )
                         error(err)
 
-            return val, div
+            return ValueStore(val, div)
 
-    def value(self, value: ValueType) -> float:
-        v: int | float | str = value[0]
-        if isinstance(v, str):
-            raise TypeError("value cannot be string")
-        return v / value[1]
+    def value(self, value: ValueStore) -> float:
+        return value.value / value.n
 
 
 Metrics.register(RatioMetric)
+
+
+############################################################################################
+#
+# Categorizations
+#
+############################################################################################
+
+
+def default_ValueStore() -> ValueStore:
+    return ValueStore()
+
+
+class Category:
+    def __init__(
+        self,
+        title: str,
+    ) -> None:
+        self.title: str = title
+        # self.fields: List[str]
+        self.values: Dict[str, ValueStore] = defaultdict(default_ValueStore)
+        self.strings: Dict[str, str] = dict()
+
+    # def __post_init__(self) -> None:
+    #     for field in self.fields:
+    #         self.values[field] = ValueStore()
+
+    def record(self, field: str, value: ValueStore | str) -> None:
+        if isinstance(value, str):
+            self.strings[field] = value
+        else:
+            self.values[field].record(value)
+        return None
+
+    def get(self, field: str) -> ValueStore | str:
+        if field in self.values:
+            return self.values[field]
+        elif field in self.strings:
+            return self.strings[field]
+        else:
+            raise KeyError(f"field not found in category={self.title}: {field}")
+
+
+class Categorization:
+    title: str
+    total_battles: int = 0
+
 
 ############################################################################################
 #
