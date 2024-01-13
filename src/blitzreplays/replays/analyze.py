@@ -1,6 +1,6 @@
 import typer
 from typer import Context, Option, Argument
-from typing import Annotated, Optional, List
+from typing import Annotated, Optional, List, Dict
 from asyncio import create_task, Task, sleep
 import logging
 from pathlib import Path
@@ -9,7 +9,10 @@ from alive_progress import alive_bar  # type: ignore
 from importlib.resources.abc import Traversable
 from importlib.resources import as_file
 import importlib
+from tomlkit import key as toml_key
 from tomlkit.toml_file import TOMLFile
+
+from tomlkit.items import Item as TOMLItem, Key as TOMLKey, AoT, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
 from pyutils import FileQueue, EventCounter, AsyncTyper, IterableQueue
 from pyutils.utils import set_config
@@ -28,6 +31,8 @@ from .analyze_models import (
     StatsQuery,
     StatsType,
     AccountId,
+    FieldStore,
+    ReportField,
 )
 
 app = AsyncTyper()
@@ -64,13 +69,19 @@ def analyze(
         Optional[str],
         "--analyze-config",
         Option(
-            default=None,
             show_default=False,
             help="TOML config file for 'analyze' reports",
         ),
-    ],
+    ] = None,
+    report_mode: Annotated[
+        str, Option(help="report mode (i.e. field config)")
+    ] = "default",
 ) -> None:
+    """
+    analyze replays
+    """
     analyze_config: TOMLDocument | None = None
+    fields = FieldStore()
     try:
         config: ConfigParser = ctx.obj["config"]
         if analyze_config_fn is None:
@@ -85,13 +96,36 @@ def analyze(
                     "analyze_config",
                     None,
                 )
-                analyze_config_file = TOMLFile(analyze_config_fn)
-                analyze_config = analyze_config_file.read()
+        analyze_config_file = TOMLFile(analyze_config_fn)
+        analyze_config = analyze_config_file.read()
 
+        debug("analyze-config: -------------------------------------------------")
+        for key, value in analyze_config.items():
+            debug(f"{key} = {value}")
+        debug("analyze-config EOF-----------------------------------------------")
+
+        field_config: TOMLItem | None = None
+        fields_key: TOMLKey = toml_key("FIELDS")
+        if (field_config := analyze_config.item(fields_key)) is None:
+            raise ValueError(
+                f"'{fields_key.as_string()}' not defined in analyze_config file: {analyze_config_fn}"
+            )
+        if not (isinstance(field_config, TOMLTable)):
+            raise ValueError(f"FIELDS is not TOML Array: {type(field_config)}")
+
+        fld: Dict[str, str]
+        for fld in field_config[report_mode].unwrap():
+            debug(", ".join(["=".join([key, value]) for key, value in fld.items()]))  # type: ignore
+            field = fields.create(**fld)
+            debug(f"field key={field.key}")
+        ctx.obj["fields"] = fields
+
+        message("all good!")
+        typer.Exit()
     except KeyError as err:
         error(f"could not read all the params: {err}")
         typer.Exit(code=1)
-        assert False, "trick Mypy..."
+        # assert False, "trick Mypy..."
     except Exception as err:
         error(err)
         typer.Exit(code=2)
@@ -110,7 +144,7 @@ async def db(
         ),
     ] = None,
 ) -> None:
-    """analyze replays from replay DB"""
+    """analyze replays from database"""
     error("not implemented yet :-(")
     pass
 
