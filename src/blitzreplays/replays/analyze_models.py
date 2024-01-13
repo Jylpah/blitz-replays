@@ -9,12 +9,16 @@ from typing import (
     Type,
     Optional,
     Literal,
+    Final,
+    # Union,
     # get_args,
     Iterable,
 )
 from pydantic import Field, model_validator
 from abc import abstractmethod
 from itertools import product
+
+# from itertools import product
 from asyncio import Lock
 from enum import StrEnum
 from dataclasses import dataclass, field as data_field
@@ -838,6 +842,7 @@ class ValueStore:
 
 ValueType = Tuple[int | float, int | float]
 FieldKey = str
+PLAYER_FIELD_PREFIX: Final[str] = "player."
 
 
 @dataclass
@@ -849,11 +854,11 @@ class ReportField:
     A concrete example: an AverageField() for a enemy teams' average win rate.
     """
 
-    operation: ClassVar[str]
+    metric: ClassVar[str]
 
     name: str
     fields: str  # key, player.key or key,player.key
-    fmt: str
+    format: str
     filter: PlayerFilter | None = None
 
     _replay_fields: ClassVar[List[str]] = [
@@ -914,23 +919,11 @@ class ReportField:
     # _fields: ClassVar[Set[str]] = data_field(default_factory=set)
     _fields: ClassVar[Set[str]] = {f for f in _player_fields + _replay_fields}
 
-    def rm_prefix(self, field: str) -> str:
-        """Remove xxxx. from the beginning of the field"""
-        if len(field.split(".")) > 1:
-            return ".".join(field.split(".")[1:])
-        else:
-            return field
+    _field: str = ""
 
-    # def __post_init__(self):
-    #     self._fields.update(self._replay_fields)
-    #     self._fields.update(self._player_fields)
-    # for fld in self.fields.split(","):
-    #     if fld not in self._fields:
-    #         raise ValueError(f"field '{fld}' is not found in replays")
-    # if (
-    #     "," not in self.fields
-    # ):  # multi-fields have be dealt in each child class separately
-    #     self.fields = self.rm_prefix(self.fields)
+    def __post_init__(self: Self) -> None:
+        debug(f"called: {type(self)}")
+        self._field = self.check_field_config()
 
     @abstractmethod
     def calc(self, replay: EnrichedReplay) -> ValueStore:
@@ -939,9 +932,29 @@ class ReportField:
     @property
     def key(self) -> FieldKey:
         if self.filter is None:
-            return "-".join([self.operation, self.fields])
+            return "-".join([self.metric, self.fields])
         else:
-            return "-".join([self.operation, self.fields, self.filter.key])
+            return "-".join([self.metric, self.fields, self.filter.key])
+
+    def is_player_field(self, field: str) -> bool:
+        """Test if the field is player field (True) or replay field (False)"""
+        return field.startswith(PLAYER_FIELD_PREFIX)
+
+    def check_field_config(self, field: str | None = None) -> str:
+        if field is None:
+            field = self.fields
+        if self.filter is None:
+            if self.is_player_field(field):
+                raise ValueError(
+                    f"player field given even there is no filter defined: {field}"
+                )
+            return field
+        elif field.startswith(PLAYER_FIELD_PREFIX):
+            return field.removeprefix(PLAYER_FIELD_PREFIX)
+        else:
+            raise ValueError(
+                f"Invalid field config: a player filter is defined, but 'fields' is not form of 'player.field_name': {field}"
+            )
 
     # @abstractmethod
     # def record(self, value: ValueType):
@@ -965,14 +978,14 @@ class FieldStore:
 
     @classmethod
     def register(cls, measure: Type[ReportField]):
-        cls.registry[measure.operation] = measure
+        cls.registry[measure.metric] = measure
 
     def create(
         self,
         name: str,
-        operation: str,
+        metric: str,
         fields: str,
-        fmt: str,
+        format: str,
         filter: str | None = None,
     ) -> ReportField:
         """Create a Field from specification
@@ -983,7 +996,7 @@ class FieldStore:
         * fields: replay_field,player.player_field
         """
         try:
-            key: FieldKey = "-".join([operation, fields])
+            key: FieldKey = "-".join([metric, fields])
             player_filter: PlayerFilter | None = None
             if filter is not None:
                 player_filter = PlayerFilter.from_str(filter=filter)
@@ -991,17 +1004,17 @@ class FieldStore:
 
             if key not in self.db:
                 try:
-                    metric: Type[ReportField] = self.registry[operation]
+                    field: Type[ReportField] = self.registry[metric]
                 except KeyError:
-                    raise ValueError(f"unsupported metric: {operation}")
-                self.db[key] = metric(
-                    name=name, filter=player_filter, fields=fields, fmt=fmt
+                    raise ValueError(f"unsupported metric: {metric}")
+                self.db[key] = field(
+                    name=name, filter=player_filter, fields=fields, format=format
                 )
 
             return self.db[key]
         except Exception as err:
             error(
-                f"could not create metric: operation={operation}, filter={filter}, fields={fields}"
+                f"could not create metric: metric={metric}, filter={filter}, fields={fields}"
             )
             error(err)
             raise err
@@ -1013,7 +1026,7 @@ class FieldStore:
 
 @dataclass
 class CountField(ReportField):
-    operation = "count"
+    metric = "count"
     fields = "exp"
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
@@ -1034,12 +1047,16 @@ FieldStore.register(CountField)
 
 @dataclass
 class SumField(ReportField):
-    operation = "sum"
+    metric = "sum"
+
+    # def __post_init__(self: Self) -> None:
+    #     """Remove 'player.' from 'fields'"""
+    #     self._field = self.check_field_config()
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
-                return ValueStore(getattr(replay, self.fields), 1)
+                return ValueStore(getattr(replay, self._field), 1)
             except AttributeError:
                 debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
                 return ValueStore(0, 0)
@@ -1048,11 +1065,11 @@ class SumField(ReportField):
             n: int = 0
             for p in replay.get_players(self.filter):
                 try:
-                    res += getattr(replay.players_dict[p], self.fields)
+                    res += getattr(replay.players_dict[p], self._field)
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute 'players_data.{self.fields}' found in replay: {replay.title}'"
+                        f"not attribute '{self.fields}' found in replay: {replay.title}'"
                     )
             return ValueStore(res, n)
 
@@ -1065,12 +1082,12 @@ FieldStore.register(SumField)
 
 @dataclass
 class AverageField(SumField):
-    operation = "average"
+    metric = "average"
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
-                return ValueStore(getattr(replay, self.fields), 1)
+                return ValueStore(getattr(replay, self._field), 1)
             except AttributeError:
                 debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
                 return ValueStore(0, 0)
@@ -1079,11 +1096,11 @@ class AverageField(SumField):
             n: int = 0
             for p in replay.get_players(self.filter):
                 try:
-                    res += getattr(replay.players_dict[p], self.fields)
+                    res += getattr(replay.players_dict[p], self._field)
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute 'players_data.{self.fields}' found in replay: {replay.title}'"
+                        f"not attribute '{self.fields}' found in replay: {replay.title}'"
                     )
             return ValueStore(res, n)
 
@@ -1098,20 +1115,21 @@ CmpOps = Literal["eq", "gt", "lt", "gte", "lte"]
 
 @dataclass
 class AverageIfField(SumField):
-    operation = "average_if"
+    metric = "average_if"
 
     _if_value: float = 1
     _if_ops: CmpOps = "eq"
-
     _field_re: ClassVar[re.Pattern] = compile(r"^([a-z_.]+)([<=>])(-?[0-9.])$")
 
     def __post_init__(self) -> None:
-        # super().__post_init__(self)
+        debug(f"called: {type(self)}")
         try:
             if (m := match(self._field_re, self.fields)) is None:
-                raise ValueError(f"invalid 'fields' specification: {self.fields}")
+                raise ValueError(
+                    f"invalid 'fields' specification: {self.fields}. format = 'FIELD[<|=|>]VALUE', e.g. top_tier=1"
+                )
 
-            self.fields = self.rm_prefix(m.group(1))
+            self._field = self.check_field_config(m.group(1))
             match m.group(2):
                 case "=":
                     self._if_ops = "eq"
@@ -1137,30 +1155,33 @@ class AverageIfField(SumField):
             case "lt":
                 return int(value < self._if_value)
             case other:
-                raise ValueError(f"invalid IF operation: {other}")
+                raise ValueError(f"invalid IF metric: {other}")
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
-                return ValueStore(self._test_if(getattr(replay, self.fields)), 1)
+                return ValueStore(self._test_if(getattr(replay, self._field)), 1)
             except AttributeError:
-                debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
+                debug(f"not attribute '{self._field}' found in replay: {replay.title}'")
                 return ValueStore(0, 0)
         else:
             res: int = 0
             n: int = 0
             for p in replay.get_players(self.filter):
                 try:
-                    res += self._test_if(getattr(replay.players_dict[p], self.fields))
+                    res += self._test_if(getattr(replay.players_dict[p], self._field))
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute 'players_data.{self.fields}' found in replay: {replay.title}'"
+                        f"not attribute '{self._field}' found in replay: {replay.title}'"
                     )
             return ValueStore(res, n)
 
     def value(self, value: ValueStore) -> float:
         return value.value / value.n
+
+
+FieldStore.register(AverageIfField)
 
 
 @dataclass
@@ -1169,16 +1190,23 @@ class MinField(ReportField):
     Field for finding min value
     """
 
-    operation = "min"
+    metric = "min"
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
-            return ValueStore(getattr(replay, self.fields), 1)
+            return ValueStore(getattr(replay, self._field), 1)
         else:
             res: float = 10e8  # big enough
             n = 0
             for p in replay.get_players(self.filter):
-                res = min(getattr(replay.players_dict[p], self.fields, 10.0e8), res)
+                res = min(
+                    getattr(
+                        replay.players_dict[p],
+                        self._field,
+                        10.0e8,
+                    ),
+                    res,
+                )
                 n += 1
             return ValueStore(res, n)
 
@@ -1195,16 +1223,19 @@ class MaxField(ReportField):
     Field for finding max value
     """
 
-    operation = "max"
+    metric = "max"
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
-            return ValueStore(getattr(replay, self.fields), 1)
+            return ValueStore(getattr(replay, self._field), 1)
         else:
             res: float = -10e8  # small enough
             n = 0
             for p in replay.get_players(self.filter):
-                res = max(getattr(replay.players_dict[p], self.fields, -1), res)
+                res = max(
+                    getattr(replay.players_dict[p], self._field, -1),
+                    res,
+                )
                 n += 1
             return ValueStore(res, n)
 
@@ -1217,7 +1248,7 @@ FieldStore.register(MaxField)
 
 @dataclass
 class RatioField(SumField):
-    operation = "ratio"
+    metric = "ratio"
 
     _value_field: str = ""
     _div_field: str = ""
@@ -1225,15 +1256,15 @@ class RatioField(SumField):
     _is_player_field_div: bool = False
 
     def __post_init__(self):
-        super().__post_init__(self)
+        debug(f"called: {type(self)}")
         try:
             self._value_field, self._div_field = self.fields.split(",")
-            if len(parts := self._value_field.split(".")) == 2:
+            if self.is_player_field(self._value_field):
+                self._value_field = self.check_field_config(self._value_field)
                 self._is_player_field_value = True
-                self._value_field = parts[1]
-            if len(parts := self._div_field.split(".")) == 2:
+            if self.is_player_field(self._div_field):
+                self._div_field = self.check_field_config(self._div_field)
                 self._is_player_field_div = True
-                self._div_field = parts[1]
         except Exception as err:
             error(f"invalid field config: {self.fields}")
             error("'ratio' metric's field key is format 'value_field,divider_field'")
@@ -1339,16 +1370,16 @@ class Categorization:
 
 ############################################################################################
 #
-# Define fields
+# Test
 #
 ############################################################################################
 
 
-_ratio_fields_value: List[str] = []
+# _ratio_fields_value: List[str] = []
 
-_ratio_fields_div: List[str] = []
+# _ratio_fields_div: List[str] = []
 
-for team, group, ops, field in product(
-    EnumTeamFilter, EnumGroupFilter, FieldStore.ops(), ReportField._replay_fields
-):
-    print(f"{team}-{group}-{ops}-{field}")
+# for team, group, ops, field in product(
+#     EnumTeamFilter, EnumGroupFilter, FieldStore.ops(), ReportField._replay_fields
+# ):
+#     print(f"{team}-{group}-{ops}-{field}")
