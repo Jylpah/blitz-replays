@@ -4,18 +4,17 @@ reports = [ "TOTAL", "battle_result", "battle_type" ]
 [COLUMNS]
 
 
-[[FIELDS]]
+[FIELDS]
 
 [[FIELDS.default]]
 name = "Battles"
-# filter = "all:all"
 metric = "count"
-# fields = "exp"
-format = "integer"
+fields = "exp"
+# filter = "all:all" ## filter not not required for replay fields
+format = "{:.0f}"
 
 [[FIELDS.default]]
 name = "WR"
-filter = "player:default"
 metric = "average_if"
 fields = "battle_results=1"
 format = "{:.2%}"
@@ -43,7 +42,6 @@ format = "{:.2f}"
 
 [[FIELDS.default]]
 name = "Top tier"
-filter = "player:default"
 metric = "average_if"
 fields = "top_tier=1"
 format = "{:.0%}"
@@ -57,7 +55,6 @@ format = "{:.2f}"
 
 [[FIELDS.default]]
 name = "Surv%"
-filter = "player:default"
 metric = "average_if"
 fields = "battle_results=1"
 format = "{:.0%}"
@@ -66,17 +63,34 @@ format = "{:.0%}"
 name = "Allies WR"
 filter = "allies:default"
 metric = "average"
-fields = "players.wr"
+fields = "player.wr"
 format = "{:.1%}"
 
 [[FIELDS.default]]
 name = "Enemies WR"
 filter = "enemies:default"
 metric = "average"
-fields = "players.wr"
+fields = "player.wr"
 format = "{:.1%}"
 
-[[REPORTS]]
+[[FIELDS.extra]]
+name = "A Platoon WR"
+filter = "allies:platoon"
+metric = "average"
+fields = "player.wr"
+format = "{:.1%}"
+
+[[FIELDS.extra]]
+name = "E Platoon WR"
+filter = "enemies:platoon"
+metric = "average"
+fields = "player.wr"
+format = "{:.1%}"
+
+[REPORTS]
+default = [ "total", "battle_results", "mastery_badge" ]
+extra = [ "is_premium" ]
+
 
 [REPORT.total]
 name = "All battles"
@@ -93,3 +107,9 @@ name = "Battle class"
 categorization = "category"
 field = "mastery_badge"
 categories = ["-", "3rd Class", "2nd Class", "1st Class", "Mastery"]
+
+[REPORT.is_premium]
+name = "Tank type"
+categorization = "category"
+field = "player.tank.is_premium"
+categories = ["Tech tree", "Premium"]
