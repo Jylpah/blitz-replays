@@ -18,63 +18,63 @@ name = "WR"
 filter = "player:default"
 metric = "average_if"
 fields = "battle_results=1"
-format = "%.2"
+format = "{:.2%}"
 
 [[FIELDS.default]]
 name = "DPB"
 filter = "player:default"
 metric = "average"
 fields = "player.damage_made"
-format = "integer"
+format = "{:.0f}"
 
 [[FIELDS.default]]
 name = "KPB"
 filter = "player:default"
 metric = "average"
 fields = "player.enemies_destroyed"
-format = "float.1"
+format = "{:.2f}"
 
 [[FIELDS.default]]
 name = "Spot"
 filter = "player:default"
 metric = "average"
 fields = "player.enemies_spotted"
-format = "float.2"
+format = "{:.2f}"
 
 [[FIELDS.default]]
 name = "Top tier"
 filter = "player:default"
 metric = "average_if"
 fields = "top_tier=1"
-format = "%"
+format = "{:.0%}"
 
 [[FIELDS.default]]
 name = "DR"
 filter = "player:default"
 metric = "ratio"
 fields = "player.damage_made,player.damage_received"
-format = "float.2"
+format = "{:.2f}"
 
 [[FIELDS.default]]
 name = "Surv%"
 filter = "player:default"
 metric = "average_if"
 fields = "battle_results=1"
-format = "%.2"
+format = "{:.0%}"
 
 [[FIELDS.default]]
-name = "Allies WR%"
+name = "Allies WR"
 filter = "allies:default"
 metric = "average"
 fields = "players.wr"
-format = "%.1"
+format = "{:.1%}"
 
 [[FIELDS.default]]
 name = "Enemies WR"
 filter = "enemies:default"
 metric = "average"
 fields = "players.wr"
-format = "%.1"
+format = "{:.1%}"
 
 [[REPORTS]]
 
