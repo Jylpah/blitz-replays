@@ -15,8 +15,7 @@ from typing import (
     Iterable,
 )
 from pydantic import Field, model_validator
-from abc import abstractmethod
-from itertools import product
+from abc import abstractmethod, ABC
 
 # from itertools import product
 from asyncio import Lock
@@ -1331,9 +1330,9 @@ def default_ValueStore() -> ValueStore:
 class Category:
     def __init__(
         self,
-        title: str,
+        # title: str,
     ) -> None:
-        self.title: str = title
+        # self.title: str = title
         # self.fields: List[str]
         self.values: Dict[str, ValueStore] = defaultdict(default_ValueStore)
         self.strings: Dict[str, str] = dict()
@@ -1360,12 +1359,123 @@ class Category:
         elif field in self.strings:
             return self.strings[field]
         else:
-            raise KeyError(f"field not found in category={self.title}: {field}")
+            raise KeyError(f"field not found in category: {field}")
 
 
-class Categorization:
-    title: str
-    total_battles: int = 0
+def default_Category() -> Category:
+    return Category()
+
+
+CategoryKey = str
+
+
+class Categorization(ABC):
+    """
+    Abstract base class for replay categorization
+    """
+
+    categorization: ClassVar[str] = "<NOT DEFINED>"
+
+    def __init__(self, name: str, field: str):
+        self.name: str = name
+        # self._battles: int = 0
+        self._field: str = field
+        self._categories: Dict[CategoryKey, Category] = defaultdict(default_Category)
+
+    @property
+    def categories(self) -> List[CategoryKey]:
+        """Get category keys sorted"""
+        return sorted(self._categories.keys(), key=str.casefold)
+
+    @abstractmethod
+    def get_category(self, replay: EnrichedReplay) -> Category:
+        """Get category for a replay"""
+        raise NotImplementedError("needs to implement in subclasses")
+
+    @classmethod
+    def help(cls) -> None:
+        """Print help"""
+        print(f'categorization = "{cls.categorization}": {cls.__doc__}')
+
+
+class Reports:
+    """
+    Reports to create
+    """
+
+    _db: ClassVar[Dict[str, Type[Categorization]]] = dict()
+
+    def __init__(self) -> None:
+        self._reports: Dict[str, Categorization] = dict()
+
+    def add(self, name: str, categorization: str, **kwargs):
+        """
+        Add a report
+        """
+        try:
+            cat: Type[Categorization] = self._db[categorization]
+            self._reports[name] = cat(name=name, **kwargs)
+        except KeyError as err:
+            error(
+                f"could not create report: name={name}, categorization={categorization}, {', '.join('='.join([k,v]) for k,v in kwargs.items())}"
+            )
+            error(err)
+
+    @classmethod
+    def register(cls, categorization: Type[Categorization]):
+        """Register a known report type"""
+        cls._db[categorization.categorization] = categorization
+
+
+class Totals(Categorization):
+    """
+    Calculate overall stats over all replays
+    """
+
+    categorization = "total"
+
+    def __init__(self, name: str, field: str):
+        super().__init__(name="Total", field="any")
+        self._categories["Total"] = Category()
+
+    def get_category(self, replay: EnrichedReplay) -> Category:
+        return self._categories["Total"]
+
+    @classmethod
+    def help(cls) -> None:
+        print(f'categorization = "{cls.categorization}" reports stats over all replays')
+
+
+Reports.register(Totals)
+
+
+class IntCategorization(Categorization):
+    """
+    Categorize replays based on a replay field's integer value.
+    """
+
+    categorization = "category"
+
+    def __init__(self, name: str, field: str, categories: List[str]):
+        super().__init__(name, field)
+        self._category_cache: Dict[int, str] = dict()
+        for ndx, cat in enumerate(categories):
+            self._category_cache[ndx] = cat
+
+    def get_category(self, replay: EnrichedReplay) -> Category:
+        try:
+            field_value: int = getattr(replay, self._field)
+            category: CategoryKey = self._category_cache[field_value]
+            return self._categories[category]
+        except AttributeError:
+            error(f"no field={self._field} found in replay: {replay.title}")
+            raise
+        except KeyError as err:
+            error(err)
+            raise
+
+
+Reports.register(IntCategorization)
 
 
 ############################################################################################
