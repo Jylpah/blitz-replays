@@ -9,10 +9,9 @@ from alive_progress import alive_bar  # type: ignore
 from importlib.resources.abc import Traversable
 from importlib.resources import as_file
 import importlib
-from tomlkit import key as toml_key
 from tomlkit.toml_file import TOMLFile
 
-from tomlkit.items import Item as TOMLItem, Key as TOMLKey, AoT, Table as TOMLTable
+from tomlkit.items import Item as TOMLItem, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
 from pyutils import FileQueue, EventCounter, AsyncTyper, IterableQueue
 from pyutils.utils import set_config
@@ -22,18 +21,13 @@ from blitzmodels import (
     Region,
     WGApi,
 )
-from blitzmodels.wotinspector.wi_apiv2 import Replay
-from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON, ReplaySummary
+from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
 from .analyze_models import (
-    EnrichedPlayerData,
     EnrichedReplay,
     StatsCache,
-    StatsQuery,
-    StatsType,
     AccountId,
     FieldStore,
     Reports,
-    ReportField,
     Category,
     ValueStore,
 )
