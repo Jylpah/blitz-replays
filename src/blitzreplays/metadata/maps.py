@@ -109,6 +109,7 @@ async def app(
     ), f"--blitz-app-dir has to be a directory: {blitz_app_dir}"
 
     filename: Path = blitz_app_dir / BLITZAPP_STRINGS
+    maps_file: Path
     is_dvpl: bool = False
     maps = Maps()
     user_strs: dict[str, str] = dict()
@@ -119,7 +120,7 @@ async def app(
         debug("base dir for game files: %s", str(blitz_app_dir))
 
         if filename.is_file():
-            pass
+            maps_file = filename
         elif (filename := filename.parent / (filename.name + ".dvpl")).is_file():
             is_dvpl = True
             debug("decoding DVPL file: %s", filename.resolve())
@@ -127,12 +128,12 @@ async def app(
             debug("using temporary file: %s", str(temp_fn))
             if not await decode_dvpl_file(filename, temp_fn):
                 raise IOError(f"could not decode DVPL file: {filename}")
-            filename = temp_fn
+            maps_file = temp_fn
         else:
             raise FileNotFoundError(f"could not open Maps file: {filename}")
 
         debug("Opening file: %s for reading map strings", str(filename))
-        with open(filename, "r", encoding="utf8") as strings_file:
+        with open(maps_file, "r", encoding="utf8") as strings_file:
             user_strs = yaml.safe_load(strings_file)
     except:
         raise
@@ -141,12 +142,15 @@ async def app(
             debug("deleting temp file: %s", str(filename))
             unlink(filename)
     try:
-        re_map: Pattern = compile(r"^#maps:(\w+?):.+?$")
+        re_map: Pattern = compile(r"^#maps:(\w+?):(\d{2})?.+?$")
         match: Match | None
         for key, value in user_strs.items():
             # some Halloween map variants have the same short name
             if (match := re_map.match(key)) and key not in maps:
-                maps.add(Map(name=value, key=match.group(1)))
+                if (id_str := match.group(2)) is None:
+                    maps.add(Map(name=value, key=match.group(1)))
+                else:
+                    maps.add(Map(name=value, key=match.group(1), id=int(id_str)))
         await update_maps(outfile=outfile, maps=maps, force=force)
     except Exception as err:
         error(f"unable to read maps from {filename.resolve()}: {err}")
