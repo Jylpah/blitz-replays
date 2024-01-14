@@ -32,7 +32,10 @@ from .analyze_models import (
     StatsType,
     AccountId,
     FieldStore,
+    Reports,
     ReportField,
+    Category,
+    ValueStore,
 )
 
 app = AsyncTyper()
@@ -67,21 +70,25 @@ def analyze(
     ctx: Context,
     analyze_config_fn: Annotated[
         Optional[str],
-        "--analyze-config",
         Option(
+            "--analyze-config",
             show_default=False,
             help="TOML config file for 'analyze' reports",
         ),
     ] = None,
-    report_mode: Annotated[
-        str, Option(help="report mode (i.e. field config)")
+    fields_param: Annotated[
+        str, Option("--fields", help="set report fields, combine field modes with '+'")
+    ] = "default",
+    reports_param: Annotated[
+        str, Option("--reports", help="reports to create. use '+' to add extra reports")
     ] = "default",
 ) -> None:
     """
     analyze replays
     """
     analyze_config: TOMLDocument | None = None
-    fields = FieldStore()
+    field_store = FieldStore()
+    reports = Reports()
     try:
         config: ConfigParser = ctx.obj["config"]
         if analyze_config_fn is None:
@@ -104,24 +111,70 @@ def analyze(
             debug(f"{key} = {value}")
         debug("analyze-config EOF-----------------------------------------------")
 
-        field_config: TOMLItem | None = None
-        fields_key: TOMLKey = toml_key("FIELDS")
-        if (field_config := analyze_config.item(fields_key)) is None:
+        # Create fields
+        config_item: TOMLItem | None = None
+        if (config_item := analyze_config.item("FIELDS")) is None:
             raise ValueError(
-                f"'{fields_key.as_string()}' not defined in analyze_config file: {analyze_config_fn}"
+                f"'FIELDS' is not defined in analyze_config file: {analyze_config_fn}"
             )
-        if not (isinstance(field_config, TOMLTable)):
-            raise ValueError(f"FIELDS is not TOML Array: {type(field_config)}")
+        if not (isinstance(config_item, TOMLTable)):
+            raise ValueError(f"FIELDS is not TOML Table: {type(config_item)}")
 
         fld: Dict[str, str]
-        for fld in field_config[report_mode].unwrap():
-            debug(", ".join(["=".join([key, value]) for key, value in fld.items()]))  # type: ignore
-            field = fields.create(**fld)
-            debug(f"field key={field.key}")
-        ctx.obj["fields"] = fields
+        for field_mode in fields_param.split("+"):
+            try:
+                for fld in config_item[field_mode].unwrap():
+                    debug(
+                        ", ".join(
+                            ["=".join([key, value]) for key, value in fld.items()]
+                        )
+                    )  # type: ignore
+                    field = field_store.create(**fld)
+                    debug(f"field key={field.key}")
+            except KeyError:
+                error(f"undefined --fields mode: {field_mode}")
+                message(
+                    f"valid report --fields modes: { ', '.join(mode for mode in config_item.keys())}"
+                )
+        ctx.obj["fields"] = field_store
 
-        message("all good!")
-        typer.Exit()
+        # create reports
+        if (config_item := analyze_config.item("REPORTS")) is None:
+            raise ValueError(
+                f"'REPORTS' is not defined in analyze_config file: {analyze_config_fn}"
+            )
+        if not (isinstance(config_item, TOMLTable)):
+            raise ValueError(f"REPORTS is not TOML Table: {type(config_item)}")
+
+        debug("Reports -------------------------------------------------------")
+        report_item: TOMLItem | None = None
+        if (report_item := analyze_config.item("REPORT")) is None:
+            raise ValueError(
+                f"'REPORT' is not defined in analyze_config file: {analyze_config_fn}"
+            )
+        if not (isinstance(report_item, TOMLTable)):
+            raise ValueError(f"REPORT is not TOML Table: {type(report_item)}")
+
+        report_key: str
+        for report_list in reports_param.split("+"):
+            debug(f"report list={report_list}")
+            try:
+                if (reports_table := config_item.get(report_list)) is None:
+                    error(f"report list not defined: 'REPORTS.{report_list}'")
+                    raise KeyError()
+                for report_key in reports_table.unwrap():
+                    debug(f"report key={report_key}")
+                    if (rpt_config := report_item.get(report_key)) is None:
+                        error(f"report REPORT.'{report_key}' is not defined")
+                        raise KeyError
+                    rpt = rpt_config.unwrap()
+                    debug(f"adding report: {rpt}")
+                    reports.add(key=report_key, **rpt)
+            except KeyError:
+                error(f"failed to define report list: {report_list}")
+        ctx.obj["reports"] = reports
+        debug("Reports EOF -----------------------------------------------------")
+
     except KeyError as err:
         error(f"could not read all the params: {err}")
         typer.Exit(code=1)
@@ -254,22 +307,46 @@ async def files(
     await accountQ.join()
     await stats.gather_stats(api_workers)
     stats_cache.fill_cache()
-    # TODO: Apply stats to the replays in the queue
-    # TODO: do analysis
-    # TODO: print results
+
+    fields: FieldStore = ctx.obj["fields"]
+    reports: Reports = ctx.obj["reports"]
+    await analyze_replays(
+        replayQ=replayQ, stats_cache=stats_cache, fields=fields, reports=reports
+    )
+    reports.print(fields=fields)
 
     debug(stats.print(do_print=False))
 
 
 async def analyze_replays(
-    replayQ: IterableQueue[EnrichedReplay], stats_cache: StatsCache
+    replayQ: IterableQueue[EnrichedReplay],
+    stats_cache: StatsCache,
+    fields: FieldStore,
+    reports: Reports,
 ) -> EventCounter:
     """
     Apply stats to replays and perform analysis
     """
     stats = EventCounter("Analyze")
+
     async for replay in replayQ:
-        stats_cache.add_stats(replay)
+        try:
+            message(f"analyzing replay: {replay.title}")
+            stats_cache.add_stats(replay)
+
+            categories: List[Category] = list()
+            for report in reports.reports:
+                if (cat := report.get_category(replay=replay)) is None:
+                    continue
+                categories.append(cat)
+
+            for field_key, field in fields.items():
+                value: ValueStore = field.calc(replay=replay)
+                for cat in categories:
+                    cat.record(field=field_key, value=value)
+            message("analysis done")
+        except Exception as err:
+            error(err)
     return stats
 
 
@@ -307,7 +384,11 @@ async def replay_read_worker(
                     )
                     stats.log("replay conversion errors")
                     raise ValueError()
-
+        except Exception as err:
+            error(f"could not read replay: {fn}: {type(err)}: {err}")
+            stats.log("errors")
+            continue
+        try:
             if replay is not None:
                 await replay.enrich(tankopedia=tankopedia, maps=maps)
                 await stats_cache.fetch_stats(replay)
@@ -315,10 +396,10 @@ async def replay_read_worker(
             else:
                 stats.log("read replay errors")
                 raise ValueError()
-
         except Exception as err:
-            error(f"could not read replay: {fn}: {type(err)}: {err}")
+            error(f"could not enrich replay: {fn}: {type(err)}: {err}")
             stats.log("errors")
+
     await replayQ.finish()
     await stats_cache.accountQ.finish()
     return stats
