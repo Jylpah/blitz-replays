@@ -14,7 +14,7 @@ from typing import (
     # get_args,
     Iterable,
 )
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, ConfigDict
 from abc import abstractmethod, ABC
 
 # from itertools import product
@@ -26,6 +26,7 @@ import re
 from pyutils import IterableQueue, EventCounter
 from pydantic_exportables import JSONExportable, JSONExportableRootDict, Idx
 from collections import defaultdict
+from tabulate import tabulate  # type: ignore
 
 from blitzmodels import (
     Tank,
@@ -413,7 +414,7 @@ class StatsCache:
                         )
 
             except Exception as err:
-                error(err)
+                error(f"could not fetch stats for account_id={account_id}: {err}")
         return stats
 
     def fill_cache(self: Self):
@@ -592,6 +593,12 @@ class EnrichedPlayerData(PlayerData):
     tank_avgdmg: float = 0
     tank_battles: int = 0
 
+    model_config = ConfigDict(
+        extra="allow",
+        populate_by_name=True,
+        validate_assignment=False,
+    )
+
     def add_stats(self, stats: PlayerStats):
         match stats.stats_type:
             case "player":
@@ -622,6 +629,12 @@ class EnrichedReplay(Replay):
     map: Map | None = None
     top_tier: bool = False
 
+    model_config = ConfigDict(
+        extra="allow",
+        populate_by_name=True,
+        validate_assignment=False,
+    )
+
     @model_validator(mode="after")
     def read_players_dict(self) -> Self:
         for player_data in self.players_data:
@@ -637,16 +650,16 @@ class EnrichedReplay(Replay):
         # stats_type: StatsType,
         tankopedia: WGApiWoTBlitzTankopedia,
         maps: Maps,
-        player: int = 0,
+        player: AccountId = 0,
     ):
         """
         Prepare the (static) replay data for the particular analysis
         """
+
         data: EnrichedPlayerData
         # add tanks
-        for account_id in self.players_dict:
-            data = self.players_dict[account_id]
-            tank_id: int = data.vehicle_descr
+        for data in self.players_dict.values():
+            tank_id: TankId = data.vehicle_descr
             try:
                 tank: Tank = tankopedia[tank_id]
                 data.tank = tank
@@ -654,29 +667,16 @@ class EnrichedReplay(Replay):
             except KeyError:
                 debug(f"could not find tank_id={tank_id} from Tankopedia")
 
-        # fetch player stats
-        # for account_id in self.players_dict:
-        #     data = self.players_dict[account_id]
-        #     await stats_cache.fetch_stats(
-        #         stats_type, account_id, self.battle_tier, self.vehicle_descr
-        #     )
-        #     ## Add player stats later
-        #     # await data.add_stats(
-        #     #     await stats_cache.get_stats(
-        #     #         stats_type, account_id, self.battle_tier, self.vehicle_descr
-        #     #     )
-        #     # )
-
         # set player
         if player <= 0:
             self.player = self.protagonist
         else:
             self.player = player
 
-        if player in self.allies:
+        if self.player in self.allies:
             pass
-        elif player in self.enemies:  # swap teams
-            tmp_team: list[int] = self.allies
+        elif self.player in self.enemies:  # swap teams
+            tmp_team: list[AccountId] = self.allies
             self.allies = self.enemies
             self.enemies = tmp_team
             if self.battle_result == EnumBattleResult.win:
@@ -684,10 +684,10 @@ class EnrichedReplay(Replay):
             elif self.battle_result == EnumBattleResult.loss:
                 self.battle_result = EnumBattleResult.win
         else:
-            raise ValueError(f"no account_id={player} in the replay")
+            raise ValueError(f"no account_id={self.player} in the replay")
 
         # set top_tier
-        if (player_tank := self.players_dict[player].tank) is not None:
+        if (player_tank := self.players_dict[self.player].tank) is not None:
             self.top_tier = player_tank.tier == self.battle_tier
 
         # set platoon mate
@@ -714,11 +714,11 @@ class EnrichedReplay(Replay):
         filter: PlayerFilter = PlayerFilter(
             team=EnumTeamFilter.all, group=EnumGroupFilter.all
         ),
-    ) -> List[int]:
+    ) -> List[AccountId]:
         """
         Get players matching the filter from the replay
         """
-        players: List[int] = list()
+        players: List[AccountId] = list()
         try:
             if filter.team == EnumTeamFilter.player:
                 match filter.group:
@@ -750,7 +750,7 @@ class EnrichedReplay(Replay):
             elif filter.team == EnumTeamFilter.all:
                 players = self.allies + self.enemies
 
-            res: list[int] = list()
+            res: list[AccountId] = list()
             data: EnrichedPlayerData
 
             match filter.group:
@@ -967,10 +967,19 @@ class ReportField:
     # def print(self, value: ValueType) -> str:
     #     return self.fmt.format(self.value(value))
 
+    def print(self, value: ValueStore | str) -> str:
+        """return value as formatted string"""
+        if isinstance(value, str):
+            return value
+        else:
+            return format(self.value(value=value), self.format)
+
 
 @dataclass
 class FieldStore:
-    """ """
+    """
+    Register of available field metrics and report fields
+    """
 
     registry: ClassVar[Dict[str, Type[ReportField]]] = dict()
     db: Dict[FieldKey, ReportField] = data_field(default_factory=dict)
@@ -995,28 +1004,40 @@ class FieldStore:
         * fields: replay_field,player.player_field
         """
         try:
-            key: FieldKey = "-".join([metric, fields])
             player_filter: PlayerFilter | None = None
             if filter is not None:
                 player_filter = PlayerFilter.from_str(filter=filter)
-                key = f"{key}-{filter}"
 
-            if key not in self.db:
-                try:
-                    field: Type[ReportField] = self.registry[metric]
-                except KeyError:
-                    raise ValueError(f"unsupported metric: {metric}")
-                self.db[key] = field(
-                    name=name, filter=player_filter, fields=fields, format=format
-                )
+            try:
+                field_type: Type[ReportField] = self.registry[metric]
+            except KeyError:
+                raise ValueError(f"unsupported metric: {metric}")
 
-            return self.db[key]
+            field = field_type(
+                name=name, filter=player_filter, fields=fields, format=format
+            )
+
+            if field.key not in self.db:
+                self.db[field.key] = field
+            return self.db[field.key]
         except Exception as err:
             error(
                 f"could not create metric: metric={metric}, filter={filter}, fields={fields}"
             )
             error(err)
             raise err
+
+    def items(self) -> List[Tuple[FieldKey, ReportField]]:
+        """Return list of stored keys & fields as tuples"""
+        return list(self.db.items())
+
+    def keys(self) -> List[FieldKey]:
+        """return field keys"""
+        return list(self.db.keys())
+
+    def fields(self) -> List[ReportField]:
+        """Return a list of ReportFields"""
+        return list(self.db.values())
 
     @classmethod
     def ops(cls) -> List[str]:
@@ -1334,16 +1355,16 @@ class Category:
     ) -> None:
         # self.title: str = title
         # self.fields: List[str]
-        self.values: Dict[str, ValueStore] = defaultdict(default_ValueStore)
-        self.strings: Dict[str, str] = dict()
+        self.values: Dict[FieldKey, ValueStore] = defaultdict(default_ValueStore)
+        self.strings: Dict[FieldKey, str] = dict()
 
     # def __post_init__(self) -> None:
     #     for field in self.fields:
     #         self.values[field] = ValueStore()
 
-    def record(self, field: str, value: ValueStore | str) -> None:
+    def record(self, field: FieldKey, value: ValueStore | str) -> None:
         try:
-            if isinstance(value, str):
+            if isinstance(value, FieldKey):
                 self.strings[field] = value
             else:
                 self.values[field].record(value)
@@ -1353,7 +1374,7 @@ class Category:
             error(err)
         return None
 
-    def get(self, field: str) -> ValueStore | str:
+    def get(self, field: FieldKey) -> ValueStore | str:
         if field in self.values:
             return self.values[field]
         elif field in self.strings:
@@ -1376,10 +1397,10 @@ class Categorization(ABC):
 
     categorization: ClassVar[str] = "<NOT DEFINED>"
 
-    def __init__(self, name: str, field: str):
+    def __init__(self, name: str):
         self.name: str = name
         # self._battles: int = 0
-        self._field: str = field
+        # self._field: str = field
         self._categories: Dict[CategoryKey, Category] = defaultdict(default_Category)
 
     @property
@@ -1388,7 +1409,7 @@ class Categorization(ABC):
         return sorted(self._categories.keys(), key=str.casefold)
 
     @abstractmethod
-    def get_category(self, replay: EnrichedReplay) -> Category:
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
         """Get category for a replay"""
         raise NotImplementedError("needs to implement in subclasses")
 
@@ -1396,6 +1417,18 @@ class Categorization(ABC):
     def help(cls) -> None:
         """Print help"""
         print(f'categorization = "{cls.categorization}": {cls.__doc__}')
+
+    def print(self, fields: FieldStore) -> None:
+        """Print a report"""
+        header: List[str] = [field.name for field in fields.fields()]
+        data: List[List[str]] = list()
+        for cat_key in self.categories:
+            cat: Category = self._categories[cat_key]
+            row: List[str] = [cat_key]
+            for field_key, field in fields.items():
+                row.append(field.print(cat.get(field=field_key)))
+            data.append(row)
+        tabulate(data, headers=header)
 
 
 class Reports:
@@ -1408,23 +1441,48 @@ class Reports:
     def __init__(self) -> None:
         self._reports: Dict[str, Categorization] = dict()
 
-    def add(self, name: str, categorization: str, **kwargs):
+    def add(self, key: str, name: str, categorization: str, **kwargs):
         """
         Add a report
         """
         try:
             cat: Type[Categorization] = self._db[categorization]
-            self._reports[name] = cat(name=name, **kwargs)
+            if key in self._reports:
+                raise KeyError(f"duplicate definition of report='{key}'")
+            self._reports[key] = cat(name=name, **kwargs)
         except KeyError as err:
             error(
-                f"could not create report: name={name}, categorization={categorization}, {', '.join('='.join([k,v]) for k,v in kwargs.items())}"
+                f"could not create report: key={key}, name={name}, categorization={categorization}, {', '.join('='.join([k,v]) for k,v in kwargs.items())}"
             )
             error(err)
+            raise
+        except Exception as err:
+            error(err)
+            raise
+
+    @property
+    def reports(self) -> List[Categorization]:
+        return list(self._reports.values())
+
+    def get(self, key: str) -> Categorization | None:
+        """Get a report by key"""
+        try:
+            return self._reports[key]
+        except KeyError:
+            error(f"no report with key={key} defined")
+        return None
 
     @classmethod
     def register(cls, categorization: Type[Categorization]):
         """Register a known report type"""
         cls._db[categorization.categorization] = categorization
+
+    def print(self, fields: FieldStore) -> None:
+        """Print reports"""
+        for report in self._reports.values():
+            print()
+            print(report.name.upper())
+            report.print(fields)
 
 
 class Totals(Categorization):
@@ -1434,11 +1492,11 @@ class Totals(Categorization):
 
     categorization = "total"
 
-    def __init__(self, name: str, field: str):
-        super().__init__(name="Total", field="any")
+    def __init__(self, name: str):
+        super().__init__(name="Total")
         self._categories["Total"] = Category()
 
-    def get_category(self, replay: EnrichedReplay) -> Category:
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
         return self._categories["Total"]
 
     @classmethod
@@ -1457,22 +1515,22 @@ class IntCategorization(Categorization):
     categorization = "category"
 
     def __init__(self, name: str, field: str, categories: List[str]):
-        super().__init__(name, field)
+        super().__init__(name=name)
+        self._field: str = field
         self._category_cache: Dict[int, str] = dict()
         for ndx, cat in enumerate(categories):
             self._category_cache[ndx] = cat
 
-    def get_category(self, replay: EnrichedReplay) -> Category:
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
         try:
             field_value: int = getattr(replay, self._field)
             category: CategoryKey = self._category_cache[field_value]
             return self._categories[category]
         except AttributeError:
             error(f"no field={self._field} found in replay: {replay.title}")
-            raise
         except KeyError as err:
             error(err)
-            raise
+        return None
 
 
 Reports.register(IntCategorization)
