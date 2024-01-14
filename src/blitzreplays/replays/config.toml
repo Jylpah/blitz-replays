@@ -88,7 +88,7 @@ fields = "player.wr"
 format = "{:.1%}"
 
 [REPORTS]
-default = [ "total", "battle_results", "mastery_badge" ]
+default = [ "total", "battle_result", "mastery_badge" ]
 extra = [ "is_premium" ]
 
 
