@@ -87,7 +87,7 @@ warn_untyped_fields = true
 include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
 indent-width = 4
 extend-include = ["*.ipynb"]
-extend-exclude = [".venv", ".vscode"]
+extend-exclude = [".venv", ".vscode", "/usr/lib/*.py"]
 fixable = ["ALL"]
 
 
