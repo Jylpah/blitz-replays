@@ -87,9 +87,9 @@ MAPS_NEW: str = "02_maps_new.json"
 MAPS_OLD: str = "02_maps_old.json"
 
 MAPS_FILES = pytest.mark.datafiles(
-    FIXTURE_DIR / MAPS_NEW,  # 58 maps
+    FIXTURE_DIR / MAPS_NEW,  # 57 maps
     FIXTURE_DIR / BLITZ_APP_DIR,  # 59 maps
-    FIXTURE_DIR / MAPS_OLD,  # 56 maps
+    FIXTURE_DIR / MAPS_OLD,  # 54 maps
     keep_top_dir=True,
 )
 
@@ -186,9 +186,9 @@ def test_3_blitzdata_tankopedia_wg(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "args,added,updated",
     [
-        (["app", BLITZ_APP_DIR], 59, 0),
-        (["file", MAPS_NEW], 58, 0),
-        (["file", MAPS_OLD], 56, 0),
+        (["app", BLITZ_APP_DIR], 52, 0),
+        (["file", MAPS_NEW], 52, 0),
+        (["file", MAPS_OLD], 49, 0),
     ],
 )
 @MAPS_FILES
@@ -214,8 +214,8 @@ def test_4_blitzdata_maps(
 @pytest.mark.parametrize(
     "args,total,added",
     [
-        (["app", BLITZ_APP_DIR], 59, 3),
-        (["file", MAPS_NEW], 58, 2),
+        (["app", BLITZ_APP_DIR], 52, 3),
+        (["file", MAPS_NEW], 52, 3),
     ],
 )
 @MAPS_FILES
