@@ -18,24 +18,26 @@ from tomlkit.toml_document import TOMLDocument
 from pyutils import FileQueue, EventCounter, AsyncTyper, IterableQueue
 from pyutils.utils import set_config
 from blitzmodels import (
-    WGApiWoTBlitzTankopedia,
+    AccountId,
     Maps,
     Region,
     WGApi,
+    WGApiWoTBlitzTankopedia,
 )
 from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
 
 from .args import EnumStatsTypes
 from .analyze_models import (
-    AccountId,
     Category,
     EnrichedReplay,
     FieldStore,
-    QueryCache,
     Reports,
+    ValueStore,
+)
+from .cache import (
+    QueryCache,
     StatsCache,
     StatsType,
-    ValueStore,
 )
 
 app = AsyncTyper()
