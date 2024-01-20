@@ -6,13 +6,15 @@ import logging
 from pathlib import Path
 from configparser import ConfigParser
 from alive_progress import alive_bar  # type: ignore
+
 from importlib.resources.abc import Traversable
 from importlib.resources import as_file
 import importlib
-from tomlkit.toml_file import TOMLFile
 
+from tomlkit.toml_file import TOMLFile
 from tomlkit.items import Item as TOMLItem, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
+
 from pyutils import FileQueue, EventCounter, AsyncTyper, IterableQueue
 from pyutils.utils import set_config
 from blitzmodels import (
@@ -22,10 +24,11 @@ from blitzmodels import (
     WGApi,
 )
 from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
+
+from .args import EnumStatsTypes
 from .analyze_models import (
     AccountId,
     Category,
-    EnumStatsTypes,
     EnrichedReplay,
     FieldStore,
     QueryCache,

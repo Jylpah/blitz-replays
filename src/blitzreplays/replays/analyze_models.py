@@ -18,7 +18,6 @@ from typing import (
 from pydantic import Field, model_validator, ConfigDict
 from abc import abstractmethod, ABC
 from asyncio import Lock
-from enum import StrEnum
 from dataclasses import dataclass, field as data_field
 from re import compile, match
 import re
@@ -45,71 +44,19 @@ from blitzmodels import (
 from blitzmodels.wotinspector.wi_apiv2 import Replay, PlayerData
 from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
 
+from .args import (
+    EnumGroupFilter,
+    EnumTeamFilter,
+    PlayerFilter,
+    StatsType,
+    StatsMeasure,
+)
 
 logger = logging.getLogger()
 error = logger.error
 message = logger.warning
 verbose = logger.info
 debug = logger.debug
-
-
-class EnumTeamFilter(StrEnum):
-    player = "player"
-    # plat_mate   = "plat_mate"
-    allies = "allies"
-    enemies = "enemies"
-    all = "all"
-
-
-class EnumGroupFilter(StrEnum):
-    default = "default"
-    all = "all"
-    solo = "solo"
-    platoon = "plat"
-    light_tank = "lt"
-    medium_tank = "mt"
-    heavy_tank = "ht"
-    tank_destroyer = "td"
-    top = "top"
-    bottom = "bottom"
-
-
-@dataclass
-class PlayerFilter:
-    team: EnumTeamFilter
-    group: EnumGroupFilter
-
-    def __str__(self) -> str:
-        return f"{self.team}:{self.group}"
-
-    @property
-    def key(self) -> str:
-        return self.__str__()
-
-    @classmethod
-    def from_str(cls, filter: str) -> Self:
-        team: EnumTeamFilter
-        group: EnumGroupFilter
-        filters: list[str] = filter.split(":")
-        if len(filters) == 1:
-            team = EnumTeamFilter(filters[0])
-            group = EnumGroupFilter.default
-        elif len(filters) == 2:
-            team = EnumTeamFilter(filters[0])
-            group = EnumGroupFilter(filters[1])
-        else:
-            raise ValueError(f"incorrect filter format: {filter} != '<team>:<group>'")
-        return cls(team=team, group=group)
-
-
-class EnumStatsTypes(StrEnum):
-    player = "player"
-    tier = "tier"
-    tank = "tank"
-
-
-StatsType = Literal["player", "tier", "tank"]
-StatsMeasure = Literal["wr", "avgdmg", "battles"]
 
 
 class PlayerTankStat(TankStat):
