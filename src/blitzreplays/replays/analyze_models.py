@@ -14,6 +14,7 @@ from typing import (
     # get_args,
     Iterable,
 )
+from itertools import product
 from pydantic import Field, model_validator, ConfigDict
 from abc import abstractmethod, ABC
 
@@ -156,13 +157,17 @@ class PlayerStats(JSONExportable):
         """
         Create PlayerStats from a TankStat for a tank
         """
-        return cls(
-            account_id=ts.account_id,
-            tank_id=ts.tank_id,
-            wr=ts.all.wins / ts.all.battles,
-            avgdmg=ts.all.damage_dealt / ts.all.battles,
-            battles=ts.all.battles,
-        )
+        # return cls(
+        #     account_id=ts.account_id,
+        #     tank_id=ts.tank_id,
+        #     wr=ts.all.wins / ts.all.battles,
+        #     avgdmg=ts.all.damage_dealt / ts.all.battles,
+        #     battles=ts.all.battles,
+        # )
+        if (pts := cls.from_obj(ts)) is not None:
+            return pts
+        else:
+            raise ValueError(f"could not transform TankStat: {ts.json_src()}")
 
     @classmethod
     def from_tank_stats(cls, stats=Iterable[TankStat], tier: int = 0) -> Optional[Self]:
@@ -172,26 +177,31 @@ class PlayerStats(JSONExportable):
         Creates tank
         """
         try:
-            ts: TankStat = next(stats)
-            res = cls(
-                account_id=ts.account_id,
-                tier=tier,
-                wr=ts.all.wins / ts.all.battles,
-                avgdmg=ts.all.damage_dealt / ts.all.battles,
-                battles=ts.all.battles,
-            )
-            for ts in stats:
+            iter_stats = iter(stats)
+            ts: TankStat = next(iter_stats)
+            # res = cls(
+            #     account_id=ts.account_id,
+            #     tier=tier,
+            #     wr=ts.all.wins / ts.all.battles,
+            #     avgdmg=ts.all.damage_dealt / ts.all.battles,
+            #     battles=ts.all.battles,
+            # )
+            res = cls.from_tank_stat(ts)
+            res.tank_id = 0
+            res.tier = tier
+            for ts in iter_stats:
                 try:
                     res.battles = res.battles + ts.all.battles
                     res.wr = res.wr + ts.all.wins
                     res.avgdmg = res.avgdmg + ts.all.damage_dealt
                 except Exception as err:
                     error(err)
-            res.wr = res.wr / res.battles
-            res.avgdmg = res.avgdmg / res.battles
+            if res.battles > 0:
+                res.wr = res.wr / res.battles
+                res.avgdmg = res.avgdmg / res.battles
             return res
         except Exception as err:
-            error(err)
+            error(f"{type(err)}: {err}")
         return None
 
     # @classmethod
@@ -244,7 +254,7 @@ class PlayerStats(JSONExportable):
     #     return PlayerStats(account_id=stats.account_id)
 
 
-class TankStatsDict(JSONExportableRootDict[PlayerTankStat]):
+class TankStatsDict(JSONExportableRootDict[TankId, PlayerTankStat]):
     """
     Helper class to store tank stats in a dict vs list for search performance
     """
@@ -260,9 +270,7 @@ class TankStatsDict(JSONExportableRootDict[PlayerTankStat]):
             try:
                 if (tank_stats := list(api_stats.data.values())[0]) is not None:
                     for tank_stat in tank_stats:
-                        if (
-                            pts := PlayerTankStat.from_obj(tank_stat, in_type=TankStat)
-                        ) is not None:
+                        if (pts := PlayerTankStat.from_obj(tank_stat)) is not None:
                             res[tank_stat.tank_id] = pts
             except KeyError:
                 debug("no stats in WG API tank stats")
@@ -288,27 +296,52 @@ class TankStatsDict(JSONExportableRootDict[PlayerTankStat]):
         self, tank_ids: Iterable[TankId], tier: int = 0
     ) -> PlayerStats | None:
         return PlayerStats.from_tank_stats(
-            [self.root[tank_id] for tank_id in tank_ids], tier=tier
+            [self.root[tank_id] for tank_id in tank_ids if tank_id in self.root],
+            tier=tier,
         )
 
 
-@dataclass
-class StatsQuery:
+class StatsQuery(JSONExportable):
     """Class for defining player stats query"""
 
-    account_id: AccountId
-    stats_type: StatsType
-    tier: int = 0
-    tank_id: int = 0
+    account_id: AccountId = Field(default=...)
+    stats_type: StatsType = Field(default=...)
+    tier: int = Field(default=0)
+    tank_id: int = Field(default=0)
+    key: str = Field(default="")
 
-    @property
-    def key(self) -> str:
-        return StatsCache.stat_key(
-            stats_type=self.stats_type,
-            account_id=self.account_id,
-            tier=self.tier,
-            tank_id=self.tank_id,
+    model_config = ConfigDict(
+        frozen=False,
+        validate_assignment=True,
+        populate_by_name=True,
+    )
+
+    @model_validator(mode="after")
+    def set_key(self: Self) -> Self:
+        self._set_skip_validation(
+            "key",
+            StatsCache.stat_key(
+                stats_type=self.stats_type,
+                account_id=self.account_id,
+                tier=self.tier,
+                tank_id=self.tank_id,
+            ),
         )
+        return self
+
+    def __hash__(self) -> int:
+        return hash(self.key)
+
+
+class QueryCache(Set[StatsQuery]):
+    """Cache (set) for stats queries"""
+
+    def __init__(self: Self):
+        self._lock = Lock()
+
+    async def update_async(self, *s: Iterable[StatsQuery]) -> None:
+        async with self._lock:
+            return super().update(*s)
 
 
 class StatsCache:
@@ -322,12 +355,12 @@ class StatsCache:
         """creator of StatsCache must add_producer() to the statsQ before calling __init__()"""
         # fmt:off
         self._stats_cache   : Dict[str, PlayerStats] = dict()
-        self._query_cache   : Set[StatsQuery] = set()  # account_id as a key
+        #self._query_cache   : Set[StatsQuery] = set()  # account_id as a key
         self._wg_api        : WGApi = wg_api
         self._api_cache     : Dict[AccountId, TankStatsDict | None ] = dict()
         self._api_cache_lock: Lock = Lock()
-        self._query_cache_lock: Lock = Lock()
-        self.accountQ       : IterableQueue[AccountId] = IterableQueue()
+        #self._query_cache_lock: Lock = Lock()
+        # self.accountQ       : IterableQueue[AccountId] = IterableQueue()
         self._stats_types   : Iterable[StatsType] = stat_types
         self._tankopedia    : WGApiWoTBlitzTankopedia = tankopedia 
 
@@ -360,66 +393,83 @@ class StatsCache:
             + hex(tank_id)[2:].zfill(6)
         )
 
-    async def fetch_stats(self, replay: "EnrichedReplay"):
+    async def fetch_stats(
+        self,
+        replay: "EnrichedReplay",
+        accountQ: IterableQueue[AccountId],
+        query_cache: QueryCache,
+    ):
         """
         Put account_ids to a queue for a API worker to fetch those.
 
         Add specific stats queries requestesd to a set.
         """
         for account_id in replay.allies + replay.enemies:
-            await self.accountQ.put(account_id)
+            await accountQ.put(account_id)
+        stats_queries: Set[StatsQuery] = set()
+        for account_id, stats_type in product(replay.get_players(), self._stats_types):
+            try:
+                query = StatsQuery(account_id=account_id, stats_type=stats_type)
+                match stats_type:
+                    case "tier":
+                        query.tier = replay.battle_tier
+                    case "tank":
+                        query.tank_id = replay.get_player_data(account_id).vehicle_descr
+                stats_queries.add(query)
+            except KeyError as err:
+                error(f"no player data for account_id={account_id}: {type(err)} {err}")
+            except Exception as err:
+                error(f"{type(err)}: {err}")
+        await query_cache.update_async(stats_queries)
 
-        async with self._query_cache_lock:
-            for stats_type in self._stats_types:
-                try:
-                    self._query_cache.update(
-                        replay.get_stats_queries(stats_type=stats_type)
-                    )
-                except Exception as err:
-                    error(err)
-
-    async def tank_stats_worker(self) -> EventCounter:
+    async def tank_stats_worker(
+        self, accountQ: IterableQueue[AccountId]
+    ) -> EventCounter:
         """
         Async worker for retrieving player stats using WG APT tank/stats
         """
         fields: List[str] = [
             "account_id",
+            "tank_id",
             "last_battle_time",
             "all.battles",
             "all.wins",
             "all.damage_dealt",
         ]
         stats = EventCounter("WG API")
-        async for account_id in self.accountQ:
+        async for account_id in accountQ:
             try:
                 async with self._api_cache_lock:
-                    fetch_stats: bool = account_id not in self._api_cache
-                    if fetch_stats:
-                        self._api_cache[account_id] = None
+                    if account_id in self._api_cache:
+                        continue
+                    self._api_cache[account_id] = None
 
-                if fetch_stats:
-                    # TODO: Add support for DB stats cache
-                    if (
-                        tank_stats := await self._wg_api.get_tank_stats_full(
-                            account_id, fields=fields
-                        )
-                    ) is None:
-                        stats.log("no stats")
-                    else:
-                        stats.log("stats retrieved")
-                        self._api_cache[
-                            account_id
-                        ] = TankStatsDict.from_WGApiWoTBlitzTankStats(
-                            api_stats=tank_stats
-                        )
+                # TODO: Add support for DB stats cache
+                if (
+                    tank_stats := await self._wg_api.get_tank_stats_full(
+                        account_id, fields=fields
+                    )
+                ) is None or tank_stats.data is None:
+                    stats.log("no stats")
+                    debug("no stats: account_id=%d", account_id)
+                else:
+                    stats.log("stats retrieved")
+                    debug(
+                        "stats OK: account_id=%d, tank-stats found: %d",
+                        account_id,
+                        len(tank_stats),
+                    )
+                    self._api_cache[
+                        account_id
+                    ] = TankStatsDict.from_WGApiWoTBlitzTankStats(api_stats=tank_stats)
 
             except Exception as err:
                 error(f"could not fetch stats for account_id={account_id}: {err}")
         return stats
 
-    def fill_cache(self: Self):
+    def fill_cache(self: Self, query_cache: QueryCache):
         stats: PlayerStats | None
-        for query in self._query_cache:
+        for query in query_cache:
             account_id: int = query.account_id
             player_tank_stats: TankStatsDict | None
             try:
@@ -428,6 +478,7 @@ class StatsCache:
                 player_tank_stats = None
 
             if player_tank_stats is None:
+                debug("query=%s: no stats found", str(query))
                 stats = PlayerStats(account_id=account_id)
                 match query.stats_type:
                     case "player":
@@ -438,6 +489,7 @@ class StatsCache:
                         stats.tank_id = query.tank_id
                 self._stats_cache[query.key] = stats
             else:
+                debug("query=%s: stats found", query)
                 match query.stats_type:
                     case "player":
                         if (stats := player_tank_stats.get_player_stats()) is None:
@@ -459,6 +511,15 @@ class StatsCache:
                                 account_id=account_id, tank_id=query.tank_id
                             )
                 self._stats_cache[query.key] = stats
+                debug("%s: %s", query.key, str(stats))
+        debug(f"stats_cache has {len(self._stats_cache)} stats")
+
+    def get_stats(self, account_id: AccountId) -> TankStatsDict | None:
+        try:
+            return self._api_cache[account_id]
+        except KeyError:
+            debug("no cached stats for account_id=%d", account_id)
+            return None
 
     def add_stats(self, replay: "EnrichedReplay") -> None:
         """
@@ -479,7 +540,7 @@ class StatsCache:
                     )
                     stats = self._stats_cache[stats_key]
                 except Exception as err:
-                    error(err)
+                    error(f"{type(err)}: {err}")
                     stats = PlayerStats(account_id=account_id)
                 player_data.add_stats(stats)
 
@@ -665,7 +726,7 @@ class EnrichedReplay(Replay):
                 data.tank = tank
                 self.battle_tier = max(self.battle_tier, int(tank.tier))
             except KeyError:
-                debug(f"could not find tank_id={tank_id} from Tankopedia")
+                debug("could not find tank_id=%d from Tankopedia", tank_id)
 
         # set player
         if player <= 0:
@@ -684,7 +745,7 @@ class EnrichedReplay(Replay):
             elif self.battle_result == EnumBattleResult.loss:
                 self.battle_result = EnumBattleResult.win
         else:
-            raise ValueError(f"no account_id={self.player} in the replay")
+            raise ValueError("no account_id=%d in the replay", self.player)
 
         # set top_tier
         if (player_tank := self.players_dict[self.player].tank) is not None:
@@ -798,17 +859,21 @@ class EnrichedReplay(Replay):
             error(err)
         return []
 
-    def get_stats_queries(self, stats_type: StatsType) -> Set[StatsQuery]:
-        queries: Set[StatsQuery] = set()
+    def get_player_data(self, account_id: AccountId) -> EnrichedPlayerData:
+        """Get player_data for account_id. Raise an exception if not found"""
+        return self.players_dict[account_id]
 
-        for account_id in self.get_players():
-            query = StatsQuery(account_id=account_id, stats_type=stats_type)
-            match stats_type:
-                case "tier":
-                    query.tier = self.battle_tier
-                case "tank":
-                    query.tank_id = self.players_dict[account_id].vehicle_descr
-        return queries
+    # def get_stats_queries(self, stats_type: StatsType) -> Set[StatsQuery]:
+    #     queries: Set[StatsQuery] = set()
+
+    #     for account_id in self.get_players():
+    #         query = StatsQuery(account_id=account_id, stats_type=stats_type)
+    #         match stats_type:
+    #             case "tier":
+    #                 query.tier = self.battle_tier
+    #             case "tank":
+    #                 query.tank_id = self.players_dict[account_id].vehicle_descr
+    #     return queries
 
 
 # @dataclass
@@ -921,7 +986,7 @@ class ReportField:
     _field: str = ""
 
     def __post_init__(self: Self) -> None:
-        debug(f"called: {type(self)}")
+        debug("called: %s", type(self))
         self._field = self.check_field_config()
 
     @abstractmethod
@@ -1078,7 +1143,9 @@ class SumField(ReportField):
             try:
                 return ValueStore(getattr(replay, self._field), 1)
             except AttributeError:
-                debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
+                debug(
+                    "not attribute '%s' found in replay: %s", self.fields, replay.title
+                )
                 return ValueStore(0, 0)
         else:
             res: int = 0
@@ -1089,7 +1156,9 @@ class SumField(ReportField):
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute '{self.fields}' found in replay: {replay.title}'"
+                        "not attribute '%s' found in replay: %s",
+                        self.fields,
+                        replay.title,
                     )
             return ValueStore(res, n)
 
@@ -1109,7 +1178,9 @@ class AverageField(SumField):
             try:
                 return ValueStore(getattr(replay, self._field), 1)
             except AttributeError:
-                debug(f"not attribute '{self.fields}' found in replay: {replay.title}'")
+                debug(
+                    "no attribute '%s' found in replay: %s", self.fields, replay.title
+                )
                 return ValueStore(0, 0)
         else:
             res: int = 0
@@ -1120,7 +1191,9 @@ class AverageField(SumField):
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute '{self.fields}' found in replay: {replay.title}'"
+                        "no attribute '%s' found in replay: %s",
+                        self.fields,
+                        replay.title,
                     )
             return ValueStore(res, n)
 
@@ -1142,7 +1215,7 @@ class AverageIfField(SumField):
     _field_re: ClassVar[re.Pattern] = compile(r"^([a-z_.]+)([<=>])(-?[0-9.])$")
 
     def __post_init__(self) -> None:
-        debug(f"called: {type(self)}")
+        debug("called: %s", type(self))
         try:
             if (m := match(self._field_re, self.fields)) is None:
                 raise ValueError(
@@ -1175,14 +1248,16 @@ class AverageIfField(SumField):
             case "lt":
                 return int(value < self._if_value)
             case other:
-                raise ValueError(f"invalid IF metric: {other}")
+                raise ValueError("invalid IF metric: %s", other)
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
         if self.filter is None:
             try:
                 return ValueStore(self._test_if(getattr(replay, self._field)), 1)
             except AttributeError:
-                debug(f"not attribute '{self._field}' found in replay: {replay.title}'")
+                debug(
+                    "no attribute '%s' found in replay: %s", self._field, replay.title
+                )
                 return ValueStore(0, 0)
         else:
             res: int = 0
@@ -1193,12 +1268,16 @@ class AverageIfField(SumField):
                     n += 1
                 except AttributeError:
                     debug(
-                        f"not attribute '{self._field}' found in replay: {replay.title}'"
+                        "replay=%s account_id=%d no attribute '%s' found in replay: %s",
+                        replay.title,
+                        p,
+                        self._field,
+                        replay.title,
                     )
             return ValueStore(res, n)
 
     def value(self, value: ValueStore) -> float:
-        return value.value / value.n
+        return float(value.value / value.n)
 
 
 FieldStore.register(AverageIfField)
@@ -1420,15 +1499,25 @@ class Categorization(ABC):
 
     def print(self, fields: FieldStore) -> None:
         """Print a report"""
+        debug("Report: %s", str(fields))
         header: List[str] = [field.name for field in fields.fields()]
         data: List[List[str]] = list()
         for cat_key in self.categories:
-            cat: Category = self._categories[cat_key]
-            row: List[str] = [cat_key]
-            for field_key, field in fields.items():
-                row.append(field.print(cat.get(field=field_key)))
-            data.append(row)
-        tabulate(data, headers=header)
+            try:
+                cat: Category = self._categories[cat_key]
+                row: List[str] = [cat_key]
+                for field_key, field in fields.items():
+                    try:
+                        row.append(field.print(cat.get(field=field_key)))
+                    except Exception as err:
+                        error(
+                            f"Category={cat_key} field={field.name}: {type(err)}: {err}"
+                        )
+                data.append(row)
+            except KeyError as err:
+                error("category=%s: %s: %s", cat_key, type(err), str(err))
+        debug("data=%s", str(data))
+        print(tabulate(data, headers=header))
 
 
 class Reports:

@@ -30,6 +30,7 @@ from .analyze_models import (
     Reports,
     Category,
     ValueStore,
+    QueryCache,
 )
 
 app = AsyncTyper()
@@ -124,7 +125,7 @@ def analyze(
                         )
                     )  # type: ignore
                     field = field_store.create(**fld)
-                    debug(f"field key={field.key}")
+                    debug("field key=%s", field.key)
             except KeyError:
                 error(f"undefined --fields mode: {field_mode}")
                 message(
@@ -151,18 +152,18 @@ def analyze(
 
         report_key: str
         for report_list in reports_param.split("+"):
-            debug(f"report list={report_list}")
+            debug("report list=%s", report_list)
             try:
                 if (reports_table := config_item.get(report_list)) is None:
-                    error(f"report list not defined: 'REPORTS.{report_list}'")
+                    error("report list not defined: 'REPORTS.%s'", report_list)
                     raise KeyError()
                 for report_key in reports_table.unwrap():
-                    debug(f"report key={report_key}")
+                    debug("report key=%s", report_key)
                     if (rpt_config := report_item.get(report_key)) is None:
-                        error(f"report REPORT.'{report_key}' is not defined")
+                        error("report 'REPORT.%s' is not defined", report_key)
                         raise KeyError
                     rpt = rpt_config.unwrap()
-                    debug(f"adding report: {rpt}")
+                    debug("adding report: %s", str(rpt))
                     reports.add(key=report_key, **rpt)
             except KeyError:
                 error(f"failed to define report list: {report_list}")
@@ -246,70 +247,93 @@ async def files(
     stats = EventCounter("Upload replays")
     fileQ = FileQueue(filter="*.wotbreplay.json", case_sensitive=False)
     replayQ: IterableQueue[EnrichedReplay] = IterableQueue()
-    wg_api = WGApi(app_id=wg_app_id, rate_limit=wg_rate_limit, default_region=region)
+    accountQ: IterableQueue[AccountId] = IterableQueue()
 
+    wg_api = WGApi(app_id=wg_app_id, rate_limit=wg_rate_limit, default_region=region)
+    query_cache = QueryCache()
     # TODO: add config file reading and set stats types accordingly
     stats_cache: StatsCache = StatsCache(
-        wg_api=wg_api, stat_types=["player", "tier"], tankopedia=tankopedia
+        wg_api=wg_api, stat_types=["player", "tank", "tier"], tankopedia=tankopedia
     )
-
-    create_task(fileQ.mk_queue(replays))
     replay_readers: List[Task] = list()
     api_workers: List[Task] = list()
-    for _ in range(REPLAY_READERS):
-        replay_readers.append(
-            create_task(
-                replay_read_worker(
-                    fileQ=fileQ,
-                    replayQ=replayQ,
-                    stats_cache=stats_cache,
-                    tankopedia=tankopedia,
-                    maps=maps,
+    try:
+        create_task(fileQ.mk_queue(replays))
+        for _ in range(REPLAY_READERS):
+            replay_readers.append(
+                create_task(
+                    replay_read_worker(
+                        fileQ=fileQ,
+                        replayQ=replayQ,
+                        accountQ=accountQ,
+                        query_cache=query_cache,
+                        stats_cache=stats_cache,
+                        tankopedia=tankopedia,
+                        maps=maps,
+                    )
                 )
             )
+        for _ in range(WG_WORKERS):
+            api_workers.append(
+                create_task(stats_cache.tank_stats_worker(accountQ=accountQ))
+            )
+
+        # replay: EnrichedReplay | None
+        count: int = 0
+        new: int = 0
+        with alive_bar(total=None, title="Reading replays", enrich_print=False) as bar:
+            while not fileQ.is_done:
+                new = fileQ.count - count
+                if new > 0:
+                    bar(new)
+                count += new
+                await sleep(0.5)
+            if (new := fileQ.count - count) > 0:
+                bar(new)
+        await fileQ.join()  # all replays have been read now
+        verbose(f"replays found: {fileQ.count}")
+        if fileQ.count == 0:
+            error("no replays found")
+            raise SystemExit
+
+        await stats.gather_stats(replay_readers)
+
+        ## Fetch stats
+        # accountQ: IterableQueue[AccountId] = stats_cache.accountQ
+        count = accountQ.count
+        new = 0
+        with alive_bar(
+            total=accountQ.qsize() + count,
+            title="Fetching player stats",
+            enrich_print=False,
+        ) as bar:
+            bar(count)
+            while not accountQ.is_done:
+                new = accountQ.count - count
+                bar(new)
+                count += new
+                await sleep(0.5)
+        await accountQ.join()
+        await stats.gather_stats(api_workers)
+        stats_cache.fill_cache(query_cache)
+
+        fields: FieldStore = ctx.obj["fields"]
+        reports: Reports = ctx.obj["reports"]
+        await analyze_replays(
+            replayQ=replayQ, stats_cache=stats_cache, fields=fields, reports=reports
         )
-    for _ in range(WG_WORKERS):
-        api_workers.append(create_task(stats_cache.tank_stats_worker()))
+        reports.print(fields=fields)
 
-    # replay: EnrichedReplay | None
-    count: int = 0
-    new: int = 0
-    with alive_bar(total=None, title="Reading replays", enrich_print=False) as bar:
-        while not fileQ.is_done:
-            new = fileQ.count - count
-            bar(new)
-            count += new
-            await sleep(0.5)
-    await fileQ.join()  # all replays have been read now
-    await stats.gather_stats(replay_readers, merge_child=False)
+        debug(stats.print(do_print=False))
+    except SystemExit:
+        debug("canceling workers... ")
+        for task in replay_readers + api_workers:
+            task.cancel()
 
-    ## Fetch stats
-    accountQ: IterableQueue[AccountId] = stats_cache.accountQ
-    count = accountQ.count
-    new = 0
-    with alive_bar(
-        total=accountQ.qsize() + count,
-        title="Fetching player stats",
-        enrich_print=False,
-    ) as bar:
-        bar(count)
-        while not accountQ.is_done:
-            new = accountQ.count - count
-            bar(new)
-            count += new
-            await sleep(0.5)
-    await accountQ.join()
-    await stats.gather_stats(api_workers)
-    stats_cache.fill_cache()
-
-    fields: FieldStore = ctx.obj["fields"]
-    reports: Reports = ctx.obj["reports"]
-    await analyze_replays(
-        replayQ=replayQ, stats_cache=stats_cache, fields=fields, reports=reports
-    )
-    reports.print(fields=fields)
-
-    debug(stats.print(do_print=False))
+    except Exception as err:
+        error(f"{type(err)}: {err}")
+    finally:
+        await wg_api.close()
 
 
 async def analyze_replays(
@@ -325,7 +349,7 @@ async def analyze_replays(
 
     async for replay in replayQ:
         try:
-            message(f"analyzing replay: {replay.title}")
+            debug("analyzing replay: %s", replay.title)
             stats_cache.add_stats(replay)
 
             categories: List[Category] = list()
@@ -338,7 +362,7 @@ async def analyze_replays(
                 value: ValueStore = field.calc(replay=replay)
                 for cat in categories:
                     cat.record(field=field_key, value=value)
-            message("analysis done")
+            debug("analysis done")
         except Exception as err:
             error(err)
     return stats
@@ -347,6 +371,8 @@ async def analyze_replays(
 async def replay_read_worker(
     fileQ: FileQueue,
     replayQ: IterableQueue[EnrichedReplay],
+    accountQ: IterableQueue[AccountId],
+    query_cache: QueryCache,
     stats_cache: StatsCache,
     tankopedia: WGApiWoTBlitzTankopedia,
     maps: Maps,
@@ -354,20 +380,16 @@ async def replay_read_worker(
     """
     Async worker to read and pre-process replay files
     """
-    stats = EventCounter("replay")
+    stats = EventCounter("replay reader")
     await replayQ.add_producer()
-    await stats_cache.accountQ.add_producer()
+    await accountQ.add_producer()
     async for fn in fileQ:
         replay: EnrichedReplay | None = None
         try:
-            if (
-                replay := await EnrichedReplay.open_json(await fileQ.get())
-            ) is not None:
-                stats.log("replays read")
-            elif (
-                old_replay := await ReplayJSON.open_json(await fileQ.get())
-            ) is not None:
-                stats.log("replays read (v1)")
+            if (replay := await EnrichedReplay.open_json(fn)) is not None:
+                stats.log("read")
+            elif (old_replay := await ReplayJSON.open_json(fn)) is not None:
+                stats.log("read (v1)")
                 debug(f"converting old replay file format: {fn}")
                 if (
                     replay := EnrichedReplay.from_obj(old_replay, in_type=ReplayJSON)
@@ -376,7 +398,7 @@ async def replay_read_worker(
                         f"""could not convert replay to the v2 format: {fn}
                             please re-fetch the replay JSON file with 'blitz-replays update'"""
                     )
-                    stats.log("replay conversion errors")
+                    stats.log("conversion errors")
                     raise ValueError()
         except Exception as err:
             error(f"could not read replay: {fn}: {type(err)}: {err}")
@@ -385,15 +407,17 @@ async def replay_read_worker(
         try:
             if replay is not None:
                 await replay.enrich(tankopedia=tankopedia, maps=maps)
-                await stats_cache.fetch_stats(replay)
+                await stats_cache.fetch_stats(
+                    replay, accountQ=accountQ, query_cache=query_cache
+                )
                 await replayQ.put(replay)
             else:
-                stats.log("read replay errors")
+                stats.log("errors")
                 raise ValueError()
         except Exception as err:
             error(f"could not enrich replay: {fn}: {type(err)}: {err}")
-            stats.log("errors")
+            stats.log("processing errors")
 
     await replayQ.finish()
-    await stats_cache.accountQ.finish()
+    await accountQ.finish()
     return stats

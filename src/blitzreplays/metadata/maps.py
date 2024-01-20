@@ -13,7 +13,6 @@ import configparser
 
 from pyutils.utils import get_temp_filename, set_config, add_suffix
 from pyutils import AsyncTyper
-from pydantic_exportables import Idx
 from blitzmodels import Maps, Region, MapModeStr
 
 from dvplc import decode_dvpl, open_dvpl_or_file
@@ -302,8 +301,8 @@ async def update_maps(outfile: Path, maps: Maps, force: bool = False):
     try:
         debug("starting")
         maps_old: Maps | None = None
-        added: set[Idx] = set()
-        updated: set[Idx] = set()
+        added: set[int] = set()
+        updated: set[int] = set()
 
         if not force:
             if (maps_old := await Maps.open_json(outfile)) is None:

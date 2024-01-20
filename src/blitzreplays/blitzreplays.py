@@ -138,6 +138,7 @@ def cli(
         ) is None:
             error(f"could not parse tankopedia from {tankopedia_fn}")
             raise typer.Exit(code=2)
+        debug("read %d tanks from %s", len(tankopedia), str(tankopedia_fn))
         ctx.obj["tankopedia"] = tankopedia
     except Exception as err:
         error(f"error reading Tankopedia from {tankopedia_fn}: {err}")
@@ -158,6 +159,7 @@ def cli(
         if (maps := run(Maps.open_json(maps_fn, exceptions=True))) is None:
             error(f"could not parse maps from {maps_fn}")
             raise typer.Exit(code=4)
+        debug("read %d maps from %s", len(maps), str(maps_fn))
         ctx.obj["maps"] = maps
     except Exception as err:
         error(f"error reading maps from {maps_fn}: {err}")
