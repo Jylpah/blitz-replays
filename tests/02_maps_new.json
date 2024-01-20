@@ -1,350 +1,52 @@
-{
-    "Random": {
-        "key": "Random",
-        "name": "Random map",
-        "id": -1,
-        "mode": 1
-    },
-    "amigosville": {
-        "key": "amigosville",
-        "name": "Falls Creek",
-        "id": -1,
-        "mode": 1
-    },
-    "amigosville_02": {
-        "key": "amigosville_02",
-        "name": "Falls Creek - Bridge",
-        "id": -1,
-        "mode": 3
-    },
-    "amigosville_03": {
-        "key": "amigosville_03",
-        "name": "Falls Creek - Factory",
-        "id": -1,
-        "mode": 3
-    },
-    "asia": {
-        "key": "asia",
-        "name": "Lost Temple",
-        "id": -1,
-        "mode": 1
-    },
-    "canal": {
-        "key": "canal",
-        "name": "Canal",
-        "id": -1,
-        "mode": 1
-    },
-    "canal_01": {
-        "key": "canal_01",
-        "name": "Canal - Factory",
-        "id": -1,
-        "mode": 3
-    },
-    "canyon": {
-        "key": "canyon",
-        "name": "Canyon",
-        "id": -1,
-        "mode": 1
-    },
-    "desert_train": {
-        "key": "desert_train",
-        "name": "Desert Sands",
-        "id": -1,
-        "mode": 1
-    },
-    "desert_train_02": {
-        "key": "desert_train_02",
-        "name": "Desert Sands - Town",
-        "id": -1,
-        "mode": 3
-    },
-    "desert_train_03": {
-        "key": "desert_train_03",
-        "name": "Desert Sands - Dunes",
-        "id": -1,
-        "mode": 3
-    },
-    "erlenberg": {
-        "key": "erlenberg",
-        "name": "Middleburg",
-        "id": -1,
-        "mode": 1
-    },
-    "erlenberg_01": {
-        "key": "erlenberg_01",
-        "name": "Middleburg - Town",
-        "id": -1,
-        "mode": 3
-    },
-    "erlenberg_02": {
-        "key": "erlenberg_02",
-        "name": "Middleburg - Hill",
-        "id": -1,
-        "mode": 3
-    },
-    "faust": {
-        "key": "faust",
-        "name": "Faust",
-        "id": -1,
-        "mode": 1
-    },
-    "forgecity": {
-        "key": "forgecity",
-        "name": "New Bay",
-        "id": -1,
-        "mode": 1
-    },
-    "fort": {
-        "key": "fort",
-        "name": "Fort Despair",
-        "id": -1,
-        "mode": 1
-    },
-    "grossberg": {
-        "key": "grossberg",
-        "name": "Dynasty's Pearl",
-        "id": -1,
-        "mode": 1
-    },
-    "himmelsdorf": {
-        "key": "himmelsdorf",
-        "name": "Himmelsdorf",
-        "id": -1,
-        "mode": 1
-    },
-    "holland": {
-        "key": "holland",
-        "name": "Molendijk",
-        "id": -1,
-        "mode": 1
-    },
-    "holmeisk": {
-        "key": "holmeisk",
-        "name": "Wasteland",
-        "id": -1,
-        "mode": 1
-    },
-    "iceworld": {
-        "key": "iceworld",
-        "name": "Everfrost",
-        "id": -1,
-        "mode": 2
-    },
-    "idle": {
-        "key": "idle",
-        "name": "Yukon",
-        "id": -1,
-        "mode": 1
-    },
-    "italy": {
-        "key": "italy",
-        "name": "Vineyards",
-        "id": -1,
-        "mode": 1
-    },
-    "karelia": {
-        "key": "karelia",
-        "name": "Rockfield",
-        "id": -1,
-        "mode": 1
-    },
-    "karieri": {
-        "key": "karieri",
-        "name": "Copperfield",
-        "id": -1,
-        "mode": 1
-    },
-    "lake": {
-        "key": "lake",
-        "name": "Mirage",
-        "id": -1,
-        "mode": 1
-    },
-    "lumber": {
-        "key": "lumber",
-        "name": "Horrorstadt",
-        "id": -1,
-        "mode": 1
-    },
-    "lumber_01": {
-        "key": "lumber_01",
-        "name": "Alpenstadt - Town",
-        "id": -1,
-        "mode": 3
-    },
-    "malinovka": {
-        "key": "malinovka",
-        "name": "Winter Malinovka",
-        "id": -1,
-        "mode": 1
-    },
-    "medvedkovo": {
-        "key": "medvedkovo",
-        "name": "Dead Rail",
-        "id": -1,
-        "mode": 1
-    },
-    "medvedkovo_02": {
-        "key": "medvedkovo_02",
-        "name": "Dead Rail - Valley",
-        "id": -1,
-        "mode": 3
-    },
-    "medvedkovo_03": {
-        "key": "medvedkovo_03",
-        "name": "Dead Rail - Railroad",
-        "id": -1,
-        "mode": 3
-    },
-    "milbase": {
-        "key": "milbase",
-        "name": "Yamato Harbor",
-        "id": -1,
-        "mode": 1
-    },
-    "milbase_02": {
-        "key": "milbase_02",
-        "name": "Yamato Harbor - Battleship",
-        "id": -1,
-        "mode": 3
-    },
-    "milbase_03": {
-        "key": "milbase_03",
-        "name": "Yamato Harbor - Hills",
-        "id": -1,
-        "mode": 3
-    },
-    "milbase_04": {
-        "key": "milbase_04",
-        "name": "Yamato Harbor - Center",
-        "id": -1,
-        "mode": 3
-    },
-    "milbase_05": {
-        "key": "milbase_05",
-        "name": "Yamato Harbor - Dock",
-        "id": -1,
-        "mode": 3
-    },
-    "moon": {
-        "key": "moon",
-        "name": "Sea of Tranquility",
-        "id": -1,
-        "mode": 2
-    },
-    "mountain": {
-        "key": "mountain",
-        "name": "Black Goldville",
-        "id": -1,
-        "mode": 1
-    },
-    "neptune": {
-        "key": "neptune",
-        "name": "Normandy",
-        "id": -1,
-        "mode": 1
-    },
-    "neptune_01": {
-        "key": "neptune_01",
-        "name": "Normandy - Hills",
-        "id": -1,
-        "mode": 3
-    },
-    "neptune_02": {
-        "key": "neptune_02",
-        "name": "Normandy - Beach",
-        "id": -1,
-        "mode": 3
-    },
-    "north": {
-        "key": "north",
-        "name": "North",
-        "id": -1,
-        "mode": 1
-    },
-    "ordeal": {
-        "key": "ordeal",
-        "name": "Trial by Fire",
-        "id": -1,
-        "mode": 1
-    },
-    "plant": {
-        "key": "plant",
-        "name": "Ghost Factory",
-        "id": -1,
-        "mode": 1
-    },
-    "pliego": {
-        "key": "pliego",
-        "name": "Castilla",
-        "id": -1,
-        "mode": 1
-    },
-    "port": {
-        "key": "port",
-        "name": "Port Bay",
-        "id": -1,
-        "mode": 1
-    },
-    "rift": {
-        "key": "rift",
-        "name": "Hellas",
-        "id": -1,
-        "mode": 1
-    },
-    "rock": {
-        "key": "rock",
-        "name": "Mayan Ruins",
-        "id": -1,
-        "mode": 1
-    },
-    "rudniki": {
-        "key": "rudniki",
-        "name": "Mines",
-        "id": -1,
-        "mode": 1
-    },
-    "rudniki_01": {
-        "key": "rudniki_01",
-        "name": "Mines - Hill",
-        "id": -1,
-        "mode": 3
-    },
-    "rudniki_02": {
-        "key": "rudniki_02",
-        "name": "Mines - Village",
-        "id": -1,
-        "mode": 3
-    },
-    "rudniki_03": {
-        "key": "rudniki_03",
-        "name": "Mines - Center",
-        "id": -1,
-        "mode": 3
-    },
-    "savanna": {
-        "key": "savanna",
-        "name": "Oasis Palms",
-        "id": -1,
-        "mode": 1
-    },
-    "skit": {
-        "key": "skit",
-        "name": "Naval Frontier",
-        "id": -1,
-        "mode": 1
-    },
-    "test": {
-        "key": "test",
-        "name": "World of Ducks",
-        "id": -1,
-        "mode": 2
-    },
-    "tutorial": {
-        "key": "tutorial",
-        "name": "Proving Grounds",
-        "id": -1,
-        "mode": 0
-    }
-}
+{"1": {"id":1,"key":"karelia","name":"","localization_code":"17_karelia_ka/17_karelia_ka.sc2","modes":[0,1]},
+"2": {"id":2,"key":"desert_train","name":"","localization_code":"02_desert_train_dt/02_desert_train_dt.sc2","modes":[0,1]},
+"3": {"id":3,"key":"erlenberg","name":"","localization_code":"03_erlenberg_er/03_erlenberg_er.sc2","modes":[0,1]},
+"4": {"id":4,"key":"karieri","name":"","localization_code":"23_karieri_kr/23_karieri_kr.sc2","modes":[0,1]},
+"5": {"id":5,"key":"amigosville","name":"","localization_code":"05_amigosville_am/05_amigosville_am.sc2","modes":[0,1]},
+"6": {"id":6,"key":"rudniki","name":"","localization_code":"06_rudniki_rd/06_rudniki_rd.sc2","modes":[0]},
+"7": {"id":7,"key":"medvedkovo","name":"","localization_code":"04_medvedkovo_md/04_medvedkovo_md.sc2","modes":[0,1]},
+"8": {"id":8,"key":"fort","name":"","localization_code":"07_fort_ft/07_fort_ft.sc2","modes":[0,1]},
+"9": {"id":9,"key":"himmelsdorf","name":"","localization_code":"19_himmelsdorf_hm/19_himmelsdorf_hm.sc2","modes":[0,1]},
+"10": {"id":10,"key":"mountain","name":"","localization_code":"21_mountain_mnt/21_mountain_mnt.sc2","modes":[0,1]},
+"11": {"id":11,"key":"savanna","name":"","localization_code":"09_savanna_sv/09_savanna_sv.sc2","modes":[0,1]},
+"12": {"id":12,"key":"plant","name":"","localization_code":"11_plant_pn/11_plant_pn.sc2","modes":[0,1]},
+"13": {"id":13,"key":"idle","name":"","localization_code":"08_idle_id/08_idle_id.sc2","modes":[0,1]},
+"14": {"id":14,"key":"holland","name":"","localization_code":"16_holland_hl/16_holland_hl.sc2","modes":[0,1]},
+"15": {"id":15,"key":"port","name":"","localization_code":"14_port_pt/14_port_pt.sc2","modes":[0,1]},
+"19": {"id":19,"key":"malinovka","name":"","localization_code":"12_malinovka_ma/12_malinovka_ma.sc2","modes":[0,1]},
+"20": {"id":20,"key":"pliego","name":"","localization_code":"13_pliego_pl/13_pliego_pl.sc2","modes":[0,1]},
+"21": {"id":21,"key":"canal","name":"","localization_code":"18_canal_cn/18_canal_cn.sc2","modes":[0,1]},
+"23": {"id":23,"key":"italy","name":"","localization_code":"22_italy_it/22_italy_it.sc2","modes":[0,1]},
+"25": {"id":25,"key":"milbase","name":"","localization_code":"24_milibase_mlb/24_milibase_mlb.sc2","modes":[0,1]},
+"26": {"id":26,"key":"lagoon","name":"","localization_code":"15_lagoon_ln/15_lagoon_ln.sc2","modes":[0,1]},
+"27": {"id":27,"key":"canyon","name":"","localization_code":"25_canyon_ca/25_canyon_ca.sc2","modes":[0,1]},
+"30": {"id":30,"key":"rock","name":"","localization_code":"28_rock_rc/28_rock_rc.sc2","modes":[0,1]},
+"31": {"id":31,"key":"grossberg","name":"","localization_code":"30_grossberg_sh/30_grossberg_sh.sc2","modes":[0,1]},
+"35": {"id":35,"key":"skit","name":"","localization_code":"29_skit_sk/29_skit_sk.sc2","modes":[0,1]},
+"38": {"id":38,"key":"lumber","name":"","localization_code":"31_lumber_lm/31_lumber_lm.sc2","modes":[0,1]},
+"39": {"id":39,"key":"faust","name":"","localization_code":"32_faust_fa_night/32_faust_fa_night.sc2","modes":[0,1]},
+"40": {"id":40,"key":"forgecity","name":"","localization_code":"34_forgecity_fc/34_forgecity_fc.sc2","modes":[0,1]},
+"42": {"id":42,"key":"neptune","name":"","localization_code":"33_neptune_nt/33_neptune_nt.sc2","modes":[0,1]},
+"43": {"id":43,"key":"rift","name":"","localization_code":"35_rift_rt/35_rift_rt.sc2","modes":[0,1]},
+"44": {"id":44,"key":"desert_train_02","name":"","localization_code":"02_desert_train_dt/02_desert_train_dt.sc2","modes":[0]},
+"45": {"id":45,"key":"desert_train_03","name":"","localization_code":"02_desert_train_dt/02_desert_train_dt.sc2","modes":[0]},
+"46": {"id":46,"key":"medvedkovo_02","name":"","localization_code":"04_medvedkovo_md/04_medvedkovo_md.sc2","modes":[0]},
+"47": {"id":47,"key":"medvedkovo_03","name":"","localization_code":"04_medvedkovo_md/04_medvedkovo_md.sc2","modes":[0]},
+"48": {"id":48,"key":"amigosville_02","name":"","localization_code":"05_amigosville_am/05_amigosville_am.sc2","modes":[0]},
+"49": {"id":49,"key":"amigosville_03","name":"","localization_code":"05_amigosville_am/05_amigosville_am.sc2","modes":[0]},
+"50": {"id":50,"key":"milbase_02","name":"","localization_code":"24_milibase_mlb/24_milibase_mlb.sc2","modes":[0]},
+"51": {"id":51,"key":"milbase_03","name":"","localization_code":"24_milibase_mlb/24_milibase_mlb.sc2","modes":[0]},
+"52": {"id":52,"key":"milbase_04","name":"","localization_code":"24_milibase_mlb/24_milibase_mlb.sc2","modes":[0]},
+"53": {"id":53,"key":"milbase_05","name":"","localization_code":"24_milibase_mlb/24_milibase_mlb.sc2","modes":[0]},
+"54": {"id":54,"key":"erlenberg_01","name":"","localization_code":"03_erlenberg_er/03_erlenberg_er.sc2","modes":[0]},
+"55": {"id":55,"key":"erlenberg_02","name":"","localization_code":"03_erlenberg_er/03_erlenberg_er.sc2","modes":[0]},
+"56": {"id":56,"key":"canal_01","name":"","localization_code":"18_canal_cn/18_canal_cn.sc2","modes":[0]},
+"57": {"id":57,"key":"lumber_01","name":"","localization_code":"31_lumber_lm/31_lumber_lm.sc2","modes":[0]},
+"58": {"id":58,"key":"neptune_01","name":"","localization_code":"33_neptune_nt/33_neptune_nt.sc2","modes":[0]},
+"59": {"id":59,"key":"neptune_02","name":"","localization_code":"33_neptune_nt/33_neptune_nt.sc2","modes":[0]},
+"60": {"id":60,"key":"rudniki_01","name":"","localization_code":"06_rudniki_rd/06_rudniki_rd.sc2","modes":[0]},
+"61": {"id":61,"key":"rudniki_02","name":"","localization_code":"06_rudniki_rd/06_rudniki_rd.sc2","modes":[0]},
+"62": {"id":62,"key":"rudniki_03","name":"","localization_code":"06_rudniki_rd/06_rudniki_rd.sc2","modes":[0]},
+"70": {"id":70,"key":"moon","name":"","localization_code":"40_moon_mn/40_moon_mn.sc2","modes":[0]},
+"71": {"id":71,"key":"holmeisk","name":"","localization_code":"26_holmeisk_hk/26_holmeisk_hk.sc2","modes":[0,1]},
+"72": {"id":72,"key":"iceworld","name":"","localization_code":"41_iceworld_ic/41_iceworld_ic.sc2","modes":[0]}}
