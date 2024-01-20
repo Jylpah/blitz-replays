@@ -1,6 +1,6 @@
 [project]
 name = "blitz-replays"
-version = "0.4.2"
+version = "0.5.0a1"
 authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"
@@ -26,8 +26,8 @@ dependencies = [
     "sortedcollections>=2.1.0",
     "tabulate>=0.9.0",
     "tomlkit>=0.12.3",
-    "typer>=0.9.0",   
-    "xmltodict>=0.13.0", 
+    "typer>=0.9.0",
+    "xmltodict>=0.13.0",
     "blitz-models @ git+https://github.com/Jylpah/blitz-models.git",
     "dvplc @ git+https://github.com/Jylpah/dvplc.git",
 ]
@@ -76,7 +76,6 @@ exclude = ['^blitz.*\.py', "tmp"]
 mypy_path = ['src']
 
 
-
 [tool.pydantic-mypy]
 init_forbid_extra = false
 init_typed = false
@@ -88,7 +87,7 @@ warn_untyped_fields = true
 include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
 indent-width = 4
 extend-include = ["*.ipynb"]
-extend-exclude = [".venv", ".vscode" ] 
+extend-exclude = [".venv", ".vscode"]
 fixable = ["ALL"]
 
 
