@@ -14,11 +14,9 @@ from typing import (
     # get_args,
     Iterable,
 )
-from itertools import product
+
 from pydantic import Field, model_validator, ConfigDict
 from abc import abstractmethod, ABC
-
-# from itertools import product
 from asyncio import Lock
 from enum import StrEnum
 from dataclasses import dataclass, field as data_field
@@ -30,17 +28,19 @@ from collections import defaultdict
 from tabulate import tabulate  # type: ignore
 
 from blitzmodels import (
-    Tank,
-    WGApiWoTBlitzTankopedia,
-    WGApiWoTBlitzTankStats,
+    AccountInfo,
+    AccountInfoStats,
+    AccountId,
     EnumVehicleTypeStr,
     Maps,
     Map,
-    WGApi,
+    Tank,
     TankStat,
-    # AccountInfo,
-    AccountId,
     TankId,
+    WGApi,
+    WGApiWoTBlitzAccountInfo,
+    WGApiWoTBlitzTankopedia,
+    WGApiWoTBlitzTankStats,
 )
 from blitzmodels.wotinspector.wi_apiv2 import Replay, PlayerData
 from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
@@ -102,17 +102,40 @@ class PlayerFilter:
         return cls(team=team, group=group)
 
 
+class EnumStatsTypes(StrEnum):
+    player = "player"
+    tier = "tier"
+    tank = "tank"
+
+
 StatsType = Literal["player", "tier", "tank"]
 StatsMeasure = Literal["wr", "avgdmg", "battles"]
 
 
 class PlayerTankStat(TankStat):
-    """Helper class for TankStatsDict"""
+    """Helper class for TankStatsDict to store individual player's tank stats"""
 
     @property
     def index(self) -> Idx:
         """return backend index"""
         return self.tank_id
+
+
+class PlayerStat(AccountInfo):
+    """Helper class for PlayerStatsDict to store individual player's stats"""
+
+    stats: Optional[AccountInfoStats] = Field(default=None)
+
+    @property
+    def index(self) -> Idx:
+        """return backend index"""
+        return self.account_id
+
+    @model_validator(mode="after")
+    def populate_stats(self) -> Self:
+        if self.statistics is not None and "all" in self.statistics:
+            self.stats = self.statistics["all"]
+        return self
 
 
 class PlayerStats(JSONExportable):
@@ -254,6 +277,33 @@ class PlayerStats(JSONExportable):
     #     return PlayerStats(account_id=stats.account_id)
 
 
+class PlayerStatsDict(JSONExportableRootDict[AccountId, PlayerStat]):
+    """
+    Helper class to store player stats in a dict vs list for search performance
+    """
+
+    @classmethod
+    def from_WGApiWoTBlitzAccountInfo(
+        cls, api_stats: WGApiWoTBlitzAccountInfo
+    ) -> "PlayerStatsDict":
+        res = cls()
+        account_info = AccountInfo | None
+        if api_stats.data is not None:
+            try:
+                for account_id, account_info in api_stats.data.items():
+                    ps = PlayerStat(account_id=int(account_id))
+                    if (
+                        account_info is not None
+                        and (ps_conv := PlayerStat.from_obj(account_info)) is not None
+                    ):
+                        res.add(ps_conv)
+                    else:
+                        res.add(ps)
+            except KeyError:
+                debug("no stats in WG API tank stats")
+        return res
+
+
 class TankStatsDict(JSONExportableRootDict[TankId, PlayerTankStat]):
     """
     Helper class to store tank stats in a dict vs list for search performance
@@ -271,7 +321,8 @@ class TankStatsDict(JSONExportableRootDict[TankId, PlayerTankStat]):
                 if (tank_stats := list(api_stats.data.values())[0]) is not None:
                     for tank_stat in tank_stats:
                         if (pts := PlayerTankStat.from_obj(tank_stat)) is not None:
-                            res[tank_stat.tank_id] = pts
+                            # res[tank_stat.tank_id] = pts
+                            res.add(pts)
             except KeyError:
                 debug("no stats in WG API tank stats")
         return res
@@ -349,22 +400,24 @@ class StatsCache:
         self: Self,
         wg_api: WGApi,
         # accountQ: IterableQueue[AccountId],
-        stat_types: Iterable[StatsType],
+        stats_type: StatsType,
         tankopedia: WGApiWoTBlitzTankopedia,
     ):
         """creator of StatsCache must add_producer() to the statsQ before calling __init__()"""
         # fmt:off
-        self._stats_cache   : Dict[str, PlayerStats] = dict()
-        #self._query_cache   : Set[StatsQuery] = set()  # account_id as a key
-        self._wg_api        : WGApi = wg_api
-        self._api_cache     : Dict[AccountId, TankStatsDict | None ] = dict()
-        self._api_cache_lock: Lock = Lock()
-        #self._query_cache_lock: Lock = Lock()
-        # self.accountQ       : IterableQueue[AccountId] = IterableQueue()
-        self._stats_types   : Iterable[StatsType] = stat_types
-        self._tankopedia    : WGApiWoTBlitzTankopedia = tankopedia 
+        self._stats_cache       : Dict[str, PlayerStats] = dict()
+        self._wg_api            : WGApi = wg_api
+        self._api_cache_tanks   : Dict[AccountId, TankStatsDict | None ] = dict()
+        self._api_cache_player  : Dict[AccountId, PlayerStatsDict | None ] = dict()
+        self._api_cache_lock    : Lock = Lock()
+        self._stats_type        : StatsType = stats_type
+        self._tankopedia        : WGApiWoTBlitzTankopedia = tankopedia 
 
         # fmt: on
+
+    @property
+    def stats_type(self) -> StatsType:
+        return self._stats_type
 
     @classmethod
     def stat_key(
@@ -407,10 +460,10 @@ class StatsCache:
         for account_id in replay.allies + replay.enemies:
             await accountQ.put(account_id)
         stats_queries: Set[StatsQuery] = set()
-        for account_id, stats_type in product(replay.get_players(), self._stats_types):
+        for account_id in replay.get_players():
             try:
-                query = StatsQuery(account_id=account_id, stats_type=stats_type)
-                match stats_type:
+                query = StatsQuery(account_id=account_id, stats_type=self.stats_type)
+                match self.stats_type:
                     case "tier":
                         query.tier = replay.battle_tier
                     case "tank":
@@ -440,9 +493,9 @@ class StatsCache:
         async for account_id in accountQ:
             try:
                 async with self._api_cache_lock:
-                    if account_id in self._api_cache:
+                    if account_id in self._api_cache_tanks:
                         continue
-                    self._api_cache[account_id] = None
+                    self._api_cache_tanks[account_id] = None
 
                 # TODO: Add support for DB stats cache
                 if (
@@ -459,7 +512,7 @@ class StatsCache:
                         account_id,
                         len(tank_stats),
                     )
-                    self._api_cache[
+                    self._api_cache_tanks[
                         account_id
                     ] = TankStatsDict.from_WGApiWoTBlitzTankStats(api_stats=tank_stats)
 
@@ -473,7 +526,7 @@ class StatsCache:
             account_id: int = query.account_id
             player_tank_stats: TankStatsDict | None
             try:
-                player_tank_stats = self._api_cache[account_id]
+                player_tank_stats = self._api_cache_tanks[account_id]
             except KeyError:
                 player_tank_stats = None
 
@@ -516,7 +569,7 @@ class StatsCache:
 
     def get_stats(self, account_id: AccountId) -> TankStatsDict | None:
         try:
-            return self._api_cache[account_id]
+            return self._api_cache_tanks[account_id]
         except KeyError:
             debug("no cached stats for account_id=%d", account_id)
             return None
@@ -530,19 +583,18 @@ class StatsCache:
         for player_data in replay.players_dict.values():
             account_id: AccountId = player_data.dbid
             tank_id: TankId = player_data.vehicle_descr
-            for stats_type in self._stats_types:
-                try:
-                    stats_key: str = self.stat_key(
-                        stats_type=stats_type,
-                        account_id=account_id,
-                        tier=battle_tier,
-                        tank_id=tank_id,
-                    )
-                    stats = self._stats_cache[stats_key]
-                except Exception as err:
-                    error(f"{type(err)}: {err}")
-                    stats = PlayerStats(account_id=account_id)
-                player_data.add_stats(stats)
+            try:
+                stats_key: str = self.stat_key(
+                    stats_type=self.stats_type,
+                    account_id=account_id,
+                    tier=battle_tier,
+                    tank_id=tank_id,
+                )
+                stats = self._stats_cache[stats_key]
+            except Exception as err:
+                error(f"{type(err)}: {err}")
+                stats = PlayerStats(account_id=account_id)
+            player_data.add_stats(stats)
 
     # async def player_stats_worker(self) -> None:
     #     """Async worker for retrieving player stats"""
@@ -707,8 +759,6 @@ class EnrichedReplay(Replay):
 
     async def enrich(
         self,
-        # stats_cache: StatsCache,
-        # stats_type: StatsType,
         tankopedia: WGApiWoTBlitzTankopedia,
         maps: Maps,
         player: AccountId = 0,
