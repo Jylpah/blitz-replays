@@ -3,6 +3,7 @@ from os.path import dirname, realpath
 from pathlib import Path
 from typer.testing import CliRunner
 from click.testing import Result
+from typing import List
 import logging
 
 from blitzreplays.blitzreplays import app
@@ -58,12 +59,23 @@ def enum_nation() -> list[str]:
     ]
 
 
+@pytest.fixture
+def analyze_dir() -> str:
+    """Dir that contains replays to analyze"""
+    return "replays-analyze"
+
+
 FIXTURE_DIR = Path(dirname(realpath(__file__)))
 
 REPLAY_FILES = pytest.mark.datafiles(
     FIXTURE_DIR / "20200229_2332__jylpah_E-50_lumber.wotbreplay",
     FIXTURE_DIR / "20200229_2337__jylpah_E-50_skit.wotbreplay",
     on_duplicate="overwrite",
+)
+
+REPLAY_ANALYZE_FILES = pytest.mark.datafiles(
+    FIXTURE_DIR / "replays-analyze",
+    on_duplicate="ignore",
 )
 
 TANKOPEDIA: str = "01_Tankopedia_new.json"
@@ -122,4 +134,45 @@ def test_1_blitzreplays_upload(
     assert result.exit_code == 0, f"blitzreplays upload failed: {result.output}"
 
 
-# TODO: test for replay analysis
+@pytest.mark.parametrize(
+    "args",
+    [
+        (["--stats-type", "player", "files"]),
+        (["--stats-type", "tier", "files"]),
+        (["--stats-type", "tank", "files"]),
+    ],
+)
+@REPLAY_ANALYZE_FILES
+def test_2_blitzreplays_analyze_files(
+    tmp_path: Path, datafiles: Path, args: List[str], analyze_dir: str
+) -> None:
+    result: Result = CliRunner().invoke(
+        app,
+        ["analyze"] + args + [str(tmp_path / analyze_dir)],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"blitzreplays analyze failed: {result.output}"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        (["--fields", "+extra", "files"]),
+        (["--player", "521458531", "files"]),
+        (["--reports", "extra", "files"]),
+        (["--reports", "+extra", "files", "--wg-rate-limit", "10"]),
+    ],
+)
+@REPLAY_ANALYZE_FILES
+def test_3_blitzreplays_analyze_files(
+    tmp_path: Path,
+    datafiles: Path,
+    args: List[str],
+    analyze_dir: str,
+) -> None:
+    result: Result = CliRunner().invoke(
+        app,
+        ["analyze"] + args + [str(tmp_path / analyze_dir)],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"blitzreplays analyze failed: {result.output}"
