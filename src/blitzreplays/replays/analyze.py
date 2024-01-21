@@ -294,9 +294,7 @@ async def files(
                 )
             )
         for _ in range(WG_WORKERS):
-            api_workers.append(
-                create_task(stats_cache.tank_stats_worker(accountQ=accountQ))
-            )
+            api_workers.append(create_task(stats_cache.stats_worker(accountQ=accountQ)))
 
         # replay: EnrichedReplay | None
         count: int = 0
@@ -400,7 +398,7 @@ async def replay_read_worker(
     """
     Async worker to read and pre-process replay files
     """
-    stats = EventCounter("replay reader")
+    stats = EventCounter("replays")
     await replayQ.add_producer()
     await accountQ.add_producer()
     async for fn in fileQ:
@@ -427,7 +425,7 @@ async def replay_read_worker(
         try:
             if replay is not None:
                 await replay.enrich(tankopedia=tankopedia, maps=maps)
-                await stats_cache.fetch_stats(
+                await stats_cache.queue_stats(
                     replay, accountQ=accountQ, query_cache=query_cache
                 )
                 await replayQ.put(replay)
