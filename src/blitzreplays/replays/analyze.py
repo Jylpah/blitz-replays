@@ -91,6 +91,7 @@ def analyze(
     player: Annotated[
         Optional[int],
         Option(
+            "--player",
             show_default=False,
             help="player to analyze (WG account_id), default: player who recorded the replay",
         ),
@@ -104,16 +105,21 @@ def analyze(
     reports = Reports()
     try:
         config: ConfigParser = ctx.obj["config"]
-        player = set_config(
+        ctx.obj["player"] = set_config(
             config, fallback=0, section="WG", option="wg_id", value=player
         )
-        ctx.obj["player"] = player
+
         if stats_type_param is None:
-            stats_type_param = EnumStatsTypes[
-                set_config(
-                    config, DEFAULT_STATS_TYPE, "REPLAYS_ANALYZE", "stats_type", None
+            stats_type = set_config(
+                config, DEFAULT_STATS_TYPE, "REPLAYS_ANALYZE", "stats_type", None
+            )
+            try:
+                stats_type_param = EnumStatsTypes[stats_type]
+            except Exception as err:
+                error(err)
+                raise ValueError(
+                    f"invalid config file setting for 'stats_type': {stats_type}"
                 )
-            ]
         debug("--stats-type=%s", stats_type_param.value)
         ctx.obj["stats_type"] = stats_type_param.value
         if analyze_config_fn is None:
@@ -130,7 +136,13 @@ def analyze(
                 )
         analyze_config_file = TOMLFile(analyze_config_fn)
         analyze_config = analyze_config_file.read()
-
+    except KeyError as err:
+        error(f"could not read all the arguments: {type(err)}: {err}")
+        typer.Exit(code=1)
+        # assert False, "trick Mypy..."
+    try:
+        if analyze_config is None:
+            raise ValueError("could not read analyze TOML config file")
         debug("analyze-config: -------------------------------------------------")
         for key, value in analyze_config.items():
             debug(f"{key} = {value}")
@@ -200,12 +212,8 @@ def analyze(
         ctx.obj["reports"] = reports
         debug("Reports EOF -----------------------------------------------------")
 
-    except KeyError as err:
-        error(f"could not read all the arguments: {type(err)}: {err}")
-        typer.Exit(code=1)
-        # assert False, "trick Mypy..."
     except Exception as err:
-        error(err)
+        error(f"could not parse analyze TOML config file {err}")
         typer.Exit(code=2)
 
 
@@ -267,7 +275,7 @@ async def files(
 
     except KeyError as err:
         error(f"could not read all the arguments: {err}")
-        typer.Exit(code=2)
+        typer.Exit(code=3)
         assert False, "trick Mypy..."
 
     stats = EventCounter("Upload replays")
