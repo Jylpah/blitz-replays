@@ -41,8 +41,8 @@ app.async_command(
 
 CONFIG_FILE: Path | None = get_config_file()
 WI_WORKERS: int = 1
-TANKOPEDIA: str = "tanks.json"
-MAPS: str = "maps.json"
+TANKOPEDIA: Path = WGApiWoTBlitzTankopedia.default_path()
+MAPS: Path = Maps.default_path()
 
 
 ##############################################
@@ -123,9 +123,9 @@ def cli(
         tankopedia_fn = Path(
             set_config(
                 config,
-                TANKOPEDIA,
+                str(TANKOPEDIA.resolve()),
                 "METADATA",
-                "tankopedia_json",
+                "tankopedia_json1",
                 str(tankopedia_fn) if tankopedia_fn else None,
             )
         )
@@ -149,9 +149,9 @@ def cli(
         maps_fn = Path(
             set_config(
                 config,
-                MAPS,
+                str(MAPS.resolve()),
                 "METADATA",
-                "maps_json",
+                "maps_json1",
                 str(maps_fn) if maps_fn else None,
             )
         )

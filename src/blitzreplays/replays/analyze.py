@@ -1,36 +1,43 @@
 import typer
 from typer import Context, Option, Argument
-from typing import Annotated, Optional, List, Dict
+from typing import Annotated, Optional, List, Dict, Final
 from asyncio import create_task, Task, sleep
 import logging
 from pathlib import Path
 from configparser import ConfigParser
 from alive_progress import alive_bar  # type: ignore
+
 from importlib.resources.abc import Traversable
 from importlib.resources import as_file
 import importlib
-from tomlkit.toml_file import TOMLFile
 
+from tomlkit.toml_file import TOMLFile
 from tomlkit.items import Item as TOMLItem, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
+
 from pyutils import FileQueue, EventCounter, AsyncTyper, IterableQueue
 from pyutils.utils import set_config
 from blitzmodels import (
-    WGApiWoTBlitzTankopedia,
+    AccountId,
     Maps,
     Region,
     WGApi,
+    WGApiWoTBlitzTankopedia,
 )
 from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
+
+from .args import EnumStatsTypes
 from .analyze_models import (
+    Category,
     EnrichedReplay,
-    StatsCache,
-    AccountId,
     FieldStore,
     Reports,
-    Category,
     ValueStore,
+)
+from .cache import (
     QueryCache,
+    StatsCache,
+    StatsType,
 )
 
 app = AsyncTyper()
@@ -47,7 +54,7 @@ debug = logger.debug
 # Defaults
 #
 ############################################################################################
-
+DEFAULT_STATS_TYPE: Final[str] = "player"
 TANKOPEDIA: str = "tanks.json"
 WG_APP_ID: str = "d6d03acb6bee0e9f361b6e02e1780b56"
 WG_RATE_LIMIT: float = 10.0  # 10/sec
@@ -71,6 +78,10 @@ def analyze(
             help="TOML config file for 'analyze' reports",
         ),
     ] = None,
+    stats_type_param: Annotated[
+        Optional[EnumStatsTypes],
+        Option("--stats-type", help="stats to use for player stats"),
+    ] = None,
     fields_param: Annotated[
         str, Option("--fields", help="set report fields, combine field modes with '+'")
     ] = "default",
@@ -86,6 +97,14 @@ def analyze(
     reports = Reports()
     try:
         config: ConfigParser = ctx.obj["config"]
+        if stats_type_param is None:
+            stats_type_param = EnumStatsTypes[
+                set_config(
+                    config, DEFAULT_STATS_TYPE, "REPLAYS_ANALYZE", "stats_type", None
+                )
+            ]
+        debug("--stats-type=%s", stats_type_param.value)
+        ctx.obj["stats_type"] = stats_type_param.value
         if analyze_config_fn is None:
             def_config: Traversable = importlib.resources.files(
                 "blitzreplays.replays"
@@ -171,7 +190,7 @@ def analyze(
         debug("Reports EOF -----------------------------------------------------")
 
     except KeyError as err:
-        error(f"could not read all the params: {err}")
+        error(f"could not read all the params: {type(err)}: {err}")
         typer.Exit(code=1)
         # assert False, "trick Mypy..."
     except Exception as err:
@@ -179,22 +198,22 @@ def analyze(
         typer.Exit(code=2)
 
 
-@app.async_command()
-async def db(
-    ctx: Context,
-    filter: Annotated[
-        Optional[List[str]],
-        Option(
-            "--filter",
-            "-f",
-            show_default=False,
-            help="filter replays based on criteria. Use <, >, = for values and ranges",
-        ),
-    ] = None,
-) -> None:
-    """analyze replays from database"""
-    error("not implemented yet :-(")
-    pass
+# @app.async_command()
+# async def db(
+#     ctx: Context,
+#     filter: Annotated[
+#         Optional[List[str]],
+#         Option(
+#             "--filter",
+#             "-f",
+#             show_default=False,
+#             help="filter replays based on criteria. Use <, >, = for values and ranges",
+#         ),
+#     ] = None,
+# ) -> None:
+#     """analyze replays from database"""
+#     error("not implemented yet :-(")
+#     pass
 
 
 @app.async_command()
@@ -223,11 +242,12 @@ async def files(
     """
     tankopedia: WGApiWoTBlitzTankopedia
     maps: Maps
+    stats_type: StatsType
     try:
         config: ConfigParser = ctx.obj["config"]
         tankopedia = ctx.obj["tankopedia"]
         maps = ctx.obj["maps"]
-
+        stats_type = ctx.obj["stats_type"]
         wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
         region: Region
         if wg_region is None:
@@ -253,7 +273,7 @@ async def files(
     query_cache = QueryCache()
     # TODO: add config file reading and set stats types accordingly
     stats_cache: StatsCache = StatsCache(
-        wg_api=wg_api, stat_types=["player", "tank", "tier"], tankopedia=tankopedia
+        wg_api=wg_api, stats_type=stats_type, tankopedia=tankopedia
     )
     replay_readers: List[Task] = list()
     api_workers: List[Task] = list()
@@ -274,9 +294,7 @@ async def files(
                 )
             )
         for _ in range(WG_WORKERS):
-            api_workers.append(
-                create_task(stats_cache.tank_stats_worker(accountQ=accountQ))
-            )
+            api_workers.append(create_task(stats_cache.stats_worker(accountQ=accountQ)))
 
         # replay: EnrichedReplay | None
         count: int = 0
@@ -380,7 +398,7 @@ async def replay_read_worker(
     """
     Async worker to read and pre-process replay files
     """
-    stats = EventCounter("replay reader")
+    stats = EventCounter("replays")
     await replayQ.add_producer()
     await accountQ.add_producer()
     async for fn in fileQ:
@@ -407,7 +425,7 @@ async def replay_read_worker(
         try:
             if replay is not None:
                 await replay.enrich(tankopedia=tankopedia, maps=maps)
-                await stats_cache.fetch_stats(
+                await stats_cache.queue_stats(
                     replay, accountQ=accountQ, query_cache=query_cache
                 )
                 await replayQ.put(replay)

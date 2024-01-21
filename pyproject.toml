@@ -1,6 +1,6 @@
 [project]
 name = "blitz-replays"
-version = "0.5.0a1"
+version = "0.5.0a2"
 authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"
@@ -87,7 +87,7 @@ warn_untyped_fields = true
 include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
 indent-width = 4
 extend-include = ["*.ipynb"]
-extend-exclude = [".venv", ".vscode"]
+extend-exclude = [".venv", ".vscode", "/usr/lib/**"]
 fixable = ["ALL"]
 
 
