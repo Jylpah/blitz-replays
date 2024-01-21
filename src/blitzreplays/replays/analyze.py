@@ -201,7 +201,7 @@ def analyze(
         debug("Reports EOF -----------------------------------------------------")
 
     except KeyError as err:
-        error(f"could not read all the params: {type(err)}: {err}")
+        error(f"could not read all the arguments: {type(err)}: {err}")
         typer.Exit(code=1)
         # assert False, "trick Mypy..."
     except Exception as err:
