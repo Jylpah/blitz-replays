@@ -31,6 +31,30 @@ verbose = logger.info
 debug = logger.debug
 
 
+def stat_key(
+    stats_type: StatsType,
+    account_id: AccountId,
+    tier: int = 0,
+    tank_id: int = 0,
+) -> str:
+    """
+    create a stat key used to identify a StatsQuery or Single PlayerStats
+    """
+    match stats_type:
+        case "player":
+            tank_id = 0
+            tier = 0
+        case "tier":
+            tank_id = 0
+        case "tank":
+            tier = 0
+    return (
+        hex(account_id)[2:].zfill(10)
+        + hex(tier)[2:].zfill(2)
+        + hex(tank_id)[2:].zfill(6)
+    )
+
+
 class PlayerStats(JSONExportable):
     # stat_type: StatsType
     account_id: AccountId
