@@ -128,13 +128,14 @@ class PlayerStats(JSONExportable):
         Create PlayerStats from a TankStat for a tank
         """
         try:
-            return cls(
-                account_id=ts.account_id,
-                tank_id=ts.tank_id,
-                battles=ts.all.battles,
-                wr=ts.all.wins / ts.all.battles,
-                avgdmg=ts.all.damage_dealt / ts.all.battles,
-            )
+            if ts.all.battles > 0:
+                return cls(
+                    account_id=ts.account_id,
+                    tank_id=ts.tank_id,
+                    battles=ts.all.battles,
+                    wr=ts.all.wins / ts.all.battles,
+                    avgdmg=ts.all.damage_dealt / ts.all.battles,
+                )
         except Exception as err:
             error("%s: %s", type(err), err)
             error(f"could not transform TankStat: {ts.json_src()}")
