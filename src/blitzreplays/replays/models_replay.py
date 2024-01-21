@@ -147,6 +147,7 @@ class PlayerStats(JSONExportable):
         Creates tank
         """
         try:
+            debug("stats=%s", str(stats))
             iter_stats = iter(stats)
             ts: TankStat = next(iter_stats)
             # res = cls(
@@ -165,11 +166,17 @@ class PlayerStats(JSONExportable):
                     res.wr = res.wr + ts.all.wins
                     res.avgdmg = res.avgdmg + ts.all.damage_dealt
                 except Exception as err:
-                    error(err)
+                    error(f"{type(err)}: {err}")
             if res.battles > 0:
                 res.wr = res.wr / res.battles
                 res.avgdmg = res.avgdmg / res.battles
+            else:
+                res.wr = 0
+                res.avgdmg = 0
+            debug("account_id=%d, tier=%d: %s", res.account_id, res.tier, str(res))
             return res
+        except StopIteration:
+            debug("Null tank-stats")
         except Exception as err:
             error(f"{type(err)}: {err}")
         return None
