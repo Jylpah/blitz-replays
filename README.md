@@ -17,7 +17,7 @@ Set of command line tools to upload and analyze WoT Blitz replays.
 You need [Python 3.11](https://python.org/) or later installed. 
 
 ```
-pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
+pip install git+https://github.com/Jylpah/blitz-replays.git
 ```
 
 ## Upgrade
