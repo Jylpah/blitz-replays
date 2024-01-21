@@ -9,7 +9,7 @@ Set of command line tools to upload and analyze WoT Blitz replays.
   - [x] `maps`: Extraction of maps from game files
 - [x] `blitz-replays`:
   - [x] `upload`: Replay upload
-  - [ ] `analyze`: Replay analysis. Please use old [blitz-tools](../blitz-tools/)
+  - [x] `analyze`: Replay analysis: First functional WIP version
   - [ ] `parse`: Parsing replays client-side
 
 ## Install 
@@ -17,7 +17,7 @@ Set of command line tools to upload and analyze WoT Blitz replays.
 You need [Python 3.11](https://python.org/) or later installed. 
 
 ```
-pip install git+https://github.com/Jylpah/blitz-replays.git
+pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
 ```
 
 ## Upgrade
@@ -32,16 +32,19 @@ pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
 ```
 Usage: blitz-data [OPTIONS] COMMAND [ARGS]...
 
-  CLI tool extract WoT Blitz metadata for other tools
+  CLI app to extract WoT Blitz tankopedia and maps for other tools
 
 Options:
-  --normal       default verbosity
-  --verbose      verbose logging
-  --debug        debug logging
-  --config PATH  read config from file (default:
-                 /home/jarno/.config/blitzstats/config)
-  --log PATH     log to FILE
-  --help         Show this message and exit.
+  -v, --verbose         verbose logging
+  --debug               debug logging
+  --force / --no-force  Overwrite instead of updating data
+  --config FILE         read config from FILE  [default:
+                        /home/jarno/.config/blitzstats/config]
+  --log FILE            log to FILE
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or
+                        customize the installation.
+  --help                Show this message and exit.
 
 Commands:
   maps        extract maps data into a JSON file
@@ -56,13 +59,12 @@ Usage: blitz-data tankopedia [OPTIONS] COMMAND [ARGS]...
   extract tankopedia as JSON file for other tools
 
 Options:
-  -f, --force     Overwrite Tankopedia instead of updating it
-  --outfile PATH  Write Tankopedia to file (default: tanks.json)
+  --outfile FILE  Write Tankopedia to FILE
   --help          Show this message and exit.
 
 Commands:
   app   extract Tankopedia from Blitz game files
-  file  read Tankopedia from a JSON file
+  file  Read tankopedia from a file
   wg    get Tankopedia from WG API
 
 ```
@@ -74,9 +76,11 @@ Usage: blitz-data tankopedia wg [OPTIONS]
   get Tankopedia from WG API
 
 Options:
-  --wg-app-id TEXT           WG app ID
-  --wg-region [eu|asia|com]  Default WG API region
-  --help                     Show this message and exit.
+  --wg-app-id TEXT                WG app ID
+  --wg-region [ru|eu|com|asia|china|BOTS]
+                                  WG API region (default: eu)
+  --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
+  --help                          Show this message and exit.
 
 ```
 ### `blitz-data tankopedia app` usage
@@ -86,9 +90,12 @@ Usage: blitz-data tankopedia app [OPTIONS] [BLITZ_APP_DIR]
 
   extract Tankopedia from Blitz game files
 
+Arguments:
+  [BLITZ_APP_DIR]  Blitz game files directory
+
 Options:
   --wg-app-id TEXT           WG app ID
-  --wg-region [eu|asia|com]  WG API region (default: eu)
+  --wg-region [eu|asia|com]  WG API region
   --help                     Show this message and exit.
 
 ```
@@ -100,13 +107,13 @@ Usage: blitz-data maps [OPTIONS] COMMAND [ARGS]...
   extract maps data into a JSON file
 
 Options:
-  -f, --force     Overwrite maps data instead of updating it
-  --outfile PATH  Write maps to file (default: maps.json)
+  --outfile FILE  Write maps to FILE
   --help          Show this message and exit.
 
 Commands:
-  app   read maps data from Blitz game files
-  file  read maps data from a JSON file
+  app   Read maps data from game files
+  file  Read maps data from a JSON file
+  list  list maps from a JSON file
 
 ```
 ### `blitz-data maps app` usage
@@ -114,12 +121,13 @@ Commands:
 ```
 Usage: blitz-data maps app [OPTIONS] [BLITZ_APP_DIR]
 
-  read maps data from Blitz game files
+  Read maps data from game files
+
+Arguments:
+  [BLITZ_APP_DIR]  Blitz game files directory
 
 Options:
-  --wg-app-id TEXT           WG app ID
-  --wg-region [eu|asia|com]  WG API region (default: eu)
-  --help                     Show this message and exit.
+  --help  Show this message and exit.
 
 ```
 ## `blitz-replays` usage
@@ -127,116 +135,37 @@ Options:
 ```
 Usage: blitz-replays [OPTIONS] COMMAND [ARGS]...
 
-  CLI tool upload WoT Blitz Replays to WoTinspector.com
+  CLI app to upload WoT Blitz replays
 
 Options:
-  --normal               default verbosity
-  --verbose              verbose logging
-  --debug                debug logging
-  --config PATH          read config from file (default:
-                         /home/jarno/.config/blitzstats/config)
-  --log PATH             log to FILE
-  --wi-rate-limit FLOAT  rate-limit for WoTinspector.com
-  --wi-auth_token TEXT   authentication token for WoTinsepctor.com
-  --tankopedia TEXT      tankopedia JSON file
-  --maps TEXT            maps JSON file
-  --help                 Show this message and exit.
+  -v, --verbose         verbose logging
+  --debug               debug logging
+  --force / --no-force  Overwrite instead of updating data
+  --config FILE         read config from FILE  [default:
+                        /home/jarno/.config/blitzstats/config]
+  --log FILE            log to FILE
+  --tankopedia FILE     tankopedia JSON file
+  --maps FILE           maps JSON file
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or
+                        customize the installation.
+  --help                Show this message and exit.
 
 Commands:
-  upload
+  analyze  analyze replays
+  upload   upload replays to https://WoTinspector.com
 
 ```
 ### `blitz-replays upload` usage
 
 ```
-Usage: blitz-replays upload [OPTIONS] [REPLAYS]...
-
-Options:
-  --json                 fetch replay JSON files for analysis (default=False)
-  --uploaded_by INTEGER  WG account_id of the uploader
-  --private              upload replays as private without listing those
-                         publicly (default=False)
-  --help                 Show this message and exit.
+ERROR: cli(): error reading Tankopedia from /home/jarno/src/blitz-replays/.venv/lib/python3.11/site-packages/blitzmodels/tanks.json: asyncio.run() cannot be called from a running event loop
 
 ```
-
-
-### `blitz-data tankopedia` usage
+### `blitz-replays analyze files` usage
 
 ```
-Usage: blitz-data tankopedia [OPTIONS] COMMAND [ARGS]...
-
-  extract tankopedia as JSON file for other tools
-
-Options:
-  -f, --force     Overwrite Tankopedia instead of updating it
-  --outfile PATH  Write Tankopedia to file (default: tanks.json)
-  --help          Show this message and exit.
-
-Commands:
-  app   extract Tankopedia from Blitz game files
-  file  read Tankopedia from a JSON file
-  wg    get Tankopedia from WG API
-
-```
-
-
-### `blitz-data maps` usage
-
-```
-Usage: blitz-data maps [OPTIONS] COMMAND [ARGS]...
-
-  extract maps data into a JSON file
-
-Options:
-  -f, --force     Overwrite maps data instead of updating it
-  --outfile PATH  Write maps to file (default: maps.json)
-  --help          Show this message and exit.
-
-Commands:
-  app   read maps data from Blitz game files
-  file  read maps data from a JSON file
-
-```
-
-
-### `blitz-replays` usage
-
-```
-Usage: blitz-replays [OPTIONS] COMMAND [ARGS]...
-
-  CLI tool upload WoT Blitz Replays to WoTinspector.com
-
-Options:
-  --normal               default verbosity
-  --verbose              verbose logging
-  --debug                debug logging
-  --config PATH          read config from file (default:
-                         /home/jarno/.config/blitzstats/config)
-  --log PATH             log to FILE
-  --wi-rate-limit FLOAT  rate-limit for WoTinspector.com
-  --wi-auth_token TEXT   authentication token for WoTinsepctor.com
-  --tankopedia TEXT      tankopedia JSON file
-  --maps TEXT            maps JSON file
-  --help                 Show this message and exit.
-
-Commands:
-  upload
-
-```
-
-
-### `blitz-replays upload` usage
-
-```
-Usage: blitz-replays upload [OPTIONS] [REPLAYS]...
-
-Options:
-  --json                 fetch replay JSON files for analysis (default=False)
-  --uploaded_by INTEGER  WG account_id of the uploader
-  --private              upload replays as private without listing those
-                         publicly (default=False)
-  --help                 Show this message and exit.
+ERROR: cli(): error reading Tankopedia from /home/jarno/src/blitz-replays/.venv/lib/python3.11/site-packages/blitzmodels/tanks.json: asyncio.run() cannot be called from a running event loop
 
 ```
 
