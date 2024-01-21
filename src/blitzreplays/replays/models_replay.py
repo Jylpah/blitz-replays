@@ -104,7 +104,7 @@ class PlayerStats(JSONExportable):
         account_id: AccountId,
         tier: int = 0,
         tank_id: TankId = 0,
-    ) -> "PlayerStats":
+    ) -> Self:
         """
         create new zero-stats PlayerStats instance of 'stats_type'
         """
@@ -127,17 +127,20 @@ class PlayerStats(JSONExportable):
         """
         Create PlayerStats from a TankStat for a tank
         """
-        # return cls(
-        #     account_id=ts.account_id,
-        #     tank_id=ts.tank_id,
-        #     wr=ts.all.wins / ts.all.battles,
-        #     avgdmg=ts.all.damage_dealt / ts.all.battles,
-        #     battles=ts.all.battles,
-        # )
-        if (pts := cls.from_obj(ts)) is not None:
-            return pts
-        else:
-            raise ValueError(f"could not transform TankStat: {ts.json_src()}")
+        try:
+            return cls(
+                account_id=ts.account_id,
+                tank_id=ts.tank_id,
+                battles=ts.all.battles,
+                wr=ts.all.wins / ts.all.battles,
+                avgdmg=ts.all.damage_dealt / ts.all.battles,
+            )
+        except Exception as err:
+            error("%s: %s", type(err), err)
+            error(f"could not transform TankStat: {ts.json_src()}")
+        return cls.mk_zero(
+            stats_type="tank", account_id=ts.account_id, tank_id=ts.tank_id
+        )
 
     @classmethod
     def from_tank_stats(cls, stats=Iterable[TankStat], tier: int = 0) -> Optional[Self]:

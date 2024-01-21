@@ -198,22 +198,22 @@ def analyze(
         typer.Exit(code=2)
 
 
-@app.async_command()
-async def db(
-    ctx: Context,
-    filter: Annotated[
-        Optional[List[str]],
-        Option(
-            "--filter",
-            "-f",
-            show_default=False,
-            help="filter replays based on criteria. Use <, >, = for values and ranges",
-        ),
-    ] = None,
-) -> None:
-    """analyze replays from database"""
-    error("not implemented yet :-(")
-    pass
+# @app.async_command()
+# async def db(
+#     ctx: Context,
+#     filter: Annotated[
+#         Optional[List[str]],
+#         Option(
+#             "--filter",
+#             "-f",
+#             show_default=False,
+#             help="filter replays based on criteria. Use <, >, = for values and ranges",
+#         ),
+#     ] = None,
+# ) -> None:
+#     """analyze replays from database"""
+#     error("not implemented yet :-(")
+#     pass
 
 
 @app.async_command()

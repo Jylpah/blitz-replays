@@ -120,7 +120,6 @@ class TankStatsDict(JSONExportableRootDict[TankId, PlayerTankStat]):
                 if (tank_stats := list(api_stats.data.values())[0]) is not None:
                     for tank_stat in tank_stats:
                         if (pts := PlayerTankStat.from_obj(tank_stat)) is not None:
-                            # res[tank_stat.tank_id] = pts
                             res.add(pts)
             except KeyError:
                 debug("no stats in WG API tank stats")
@@ -141,8 +140,10 @@ class TankStatsDict(JSONExportableRootDict[TankId, PlayerTankStat]):
     def get_tank_stat(self, tank_id: TankId) -> PlayerStats | None:
         try:
             return PlayerStats.from_tank_stat(self.root[tank_id])
+        except KeyError:
+            error(f"no tank stat for tank_id={tank_id}")
         except Exception as err:
-            error(err)
+            error("%s: %s", type(err), err)
         return None
 
     def get_tank_stats(
@@ -628,7 +629,7 @@ class StatsCache:
                 stats = self._api_cache.get_stats(query=query)
                 self._stats_cache[stats.key] = stats
             except Exception as err:
-                error(f"{type(err)}: {err}")
+                error(f"query={query}: {type(err)}: {err}")
 
             # account_id: int = query.account_id
             # player_tank_stats: TankStatsDict | None
