@@ -174,55 +174,6 @@ class PlayerStats(JSONExportable):
             error(f"{type(err)}: {err}")
         return None
 
-    # @classmethod
-    # def tank_stats(cls, stats: List[TankStat]) -> List[Self]:
-    #     """Create PlayerStats from WG API Tank Stats for each tank"""
-    #     res: List[Self] = list()
-    #     for ts in stats:
-    #         res.append(cls.from_tank_stat(ts))
-    #     return res
-
-    # @classmethod
-    # def tier_stats(
-    #     cls, account_id: AccountId, stats: List[TankStat], tier: int
-    # ) -> Self:
-    #     """
-    #     Create PlayerStats from WG API Tank Stats
-
-    #     Assumes all the TankStats are for the same tier tanks
-    #     """
-    #     res = cls(account_id=account_id, tier=tier)
-    #     try:
-    #         for ts in stats:
-    #             res.battles = res.battles + ts.all.battles
-    #             res.wr = res.wr + ts.all.wins
-    #             res.avgdmg = res.avgdmg + ts.all.damage_dealt
-
-    #         res.wr = res.wr / res.battles
-    #         res.avgdmg = res.avgdmg / res.battles
-    #     except Exception as err:
-    #         debug(err)
-    #     return res
-
-    # @classmethod
-    # def player_stats(cls, stats: AccountInfo) -> "PlayerStats":
-    #     """ "Create PlayerStats from WG API Tank Stats"""
-
-    #     try:
-    #         if (
-    #             stats.statistics is not None
-    #             and (ps := stats.statistics["all"]) is not None
-    #         ):
-    #             return PlayerStats(
-    #                 account_id=stats.account_id,
-    #                 wr=ps.wins / ps.battles,
-    #                 avgdmg=ps.damage_dealt / ps.battles,
-    #                 battles=ps.battles,
-    #             )
-    #     except KeyError:
-    #         debug(f"no player stats for account_id={stats.account_id}")
-    #     return PlayerStats(account_id=stats.account_id)
-
 
 class EnrichedPlayerData(PlayerData):
     tank: Tank | None = None
@@ -230,12 +181,12 @@ class EnrichedPlayerData(PlayerData):
     wr: float = 0
     avgdmg: float = 0
     battles: int = 0
-    tier_wr: float = 0
-    tier_avgdmg: float = 0
-    tier_battles: int = 0
-    tank_wr: float = 0
-    tank_avgdmg: float = 0
-    tank_battles: int = 0
+    # tier_wr: float = 0
+    # tier_avgdmg: float = 0
+    # tier_battles: int = 0
+    # tank_wr: float = 0
+    # tank_avgdmg: float = 0
+    # tank_battles: int = 0
 
     model_config = ConfigDict(
         extra="allow",
@@ -244,21 +195,15 @@ class EnrichedPlayerData(PlayerData):
     )
 
     def add_stats(self, stats: PlayerStats):
-        match stats.stats_type:
-            case "player":
-                self.wr = stats.wr
-                self.avgdmg = stats.avgdmg
-                self.battles = stats.battles
-            case "tier":
-                self.tier_wr = stats.wr
-                self.tier_avgdmg = stats.avgdmg
-                self.tier_battles = stats.battles
-            case "tank":
-                self.tank_wr = stats.wr
-                self.tank_avgdmg = stats.avgdmg
-                self.tank_battles = stats.battles
-            case other:
-                raise ValueError(f"unknown stats type: {other}")
+        """
+        add stats to EnrichedReplay.EnrichedPlayerData
+
+        NOT SUITABLE for storing over sessions since the same fields are used regardless of stat_type
+        """
+
+        self.wr = stats.wr
+        self.avgdmg = stats.avgdmg
+        self.battles = stats.battles
 
 
 class EnrichedReplay(Replay):
