@@ -151,15 +151,7 @@ async def app(
     assert (
         blitz_app_dir.is_dir()
     ), f"--blitz-app-dir has to be a directory: {blitz_app_dir}"
-    #     run(
-    #         run_app(
-    #             blitz_app_dir=blitz_app_dir, region=region, outfile=outfile, force=force
-    #         )
-    #     )
 
-    # async def run_app(
-    #     blitz_app_dir: Path, region: Region, outfile: Path, force: bool = False
-    # ):
     tasks: list[Task] = []
     try:
         if (blitz_app_dir / "assets").is_dir():
