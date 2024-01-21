@@ -75,6 +75,8 @@ class PlayerStats(JSONExportable):
     # def key(self) -> str:
     #     return StatsCache.stat_key(self.account_id, self.tier, self.tank_id)
 
+    model_config = ConfigDict(validate_assignment=False)
+
     @property
     def stats_type(self) -> StatsType:
         if self.tank_id == 0 and self.tier == 0:
@@ -85,6 +87,34 @@ class PlayerStats(JSONExportable):
             return "tier"
         else:
             raise ValueError("player stats record has invalid value")
+
+    @property
+    def key(self) -> str:
+        return stat_key(
+            stats_type=self.stats_type,
+            account_id=self.account_id,
+            tier=self.tier,
+            tank_id=self.tank_id,
+        )
+
+    @classmethod
+    def mk_zero(
+        cls,
+        stats_type: StatsType,
+        account_id: AccountId,
+        tier: int = 0,
+        tank_id: TankId = 0,
+    ) -> "PlayerStats":
+        """
+        create new zero-stats PlayerStats instance of 'stats_type'
+        """
+        ps = cls(account_id=account_id)
+        match stats_type:
+            case "tier":
+                ps.tier = tier
+            case "tank":
+                ps.tank_id = tank_id
+        return ps
 
     def get(self, stats_type: StatsType, measure: StatsMeasure) -> int | float:
         """get stats measure from the PlayerStats instance. Returns '0' if error or no stat"""
