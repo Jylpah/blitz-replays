@@ -120,3 +120,6 @@ def test_1_blitzreplays_upload(
         catch_exceptions=False,
     )
     assert result.exit_code == 0, f"blitzreplays upload failed: {result.output}"
+
+
+# TODO: test for replay analysis

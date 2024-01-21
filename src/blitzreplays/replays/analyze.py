@@ -88,6 +88,14 @@ def analyze(
     reports_param: Annotated[
         str, Option("--reports", help="reports to create. use '+' to add extra reports")
     ] = "default",
+    player: Annotated[
+        Optional[int],
+        Option(
+            "--player",
+            show_default=False,
+            help="player to analyze (WG account_id), default: player who recorded the replay",
+        ),
+    ] = None,
 ) -> None:
     """
     analyze replays
@@ -97,12 +105,21 @@ def analyze(
     reports = Reports()
     try:
         config: ConfigParser = ctx.obj["config"]
+        ctx.obj["player"] = set_config(
+            config, fallback=0, section="WG", option="wg_id", value=player
+        )
+
         if stats_type_param is None:
-            stats_type_param = EnumStatsTypes[
-                set_config(
-                    config, DEFAULT_STATS_TYPE, "REPLAYS_ANALYZE", "stats_type", None
+            stats_type = set_config(
+                config, DEFAULT_STATS_TYPE, "REPLAYS_ANALYZE", "stats_type", None
+            )
+            try:
+                stats_type_param = EnumStatsTypes[stats_type]
+            except Exception as err:
+                error(err)
+                raise ValueError(
+                    f"invalid config file setting for 'stats_type': {stats_type}"
                 )
-            ]
         debug("--stats-type=%s", stats_type_param.value)
         ctx.obj["stats_type"] = stats_type_param.value
         if analyze_config_fn is None:
@@ -119,7 +136,13 @@ def analyze(
                 )
         analyze_config_file = TOMLFile(analyze_config_fn)
         analyze_config = analyze_config_file.read()
-
+    except KeyError as err:
+        error(f"could not read all the arguments: {type(err)}: {err}")
+        typer.Exit(code=1)
+        # assert False, "trick Mypy..."
+    try:
+        if analyze_config is None:
+            raise ValueError("could not read analyze TOML config file")
         debug("analyze-config: -------------------------------------------------")
         for key, value in analyze_config.items():
             debug(f"{key} = {value}")
@@ -189,12 +212,8 @@ def analyze(
         ctx.obj["reports"] = reports
         debug("Reports EOF -----------------------------------------------------")
 
-    except KeyError as err:
-        error(f"could not read all the params: {type(err)}: {err}")
-        typer.Exit(code=1)
-        # assert False, "trick Mypy..."
     except Exception as err:
-        error(err)
+        error(f"could not parse analyze TOML config file {err}")
         typer.Exit(code=2)
 
 
@@ -219,13 +238,6 @@ def analyze(
 @app.async_command()
 async def files(
     ctx: Context,
-    player: Annotated[
-        int,
-        Option(
-            show_default=False,
-            help="player to analyze (WG account_id), default: player who recorded the replay",
-        ),
-    ] = 0,
     wg_app_id: Annotated[Optional[str], Option(help="WG app ID")] = None,
     wg_region: Annotated[
         Optional[Region],
@@ -243,11 +255,14 @@ async def files(
     tankopedia: WGApiWoTBlitzTankopedia
     maps: Maps
     stats_type: StatsType
+    player: int
+
     try:
         config: ConfigParser = ctx.obj["config"]
         tankopedia = ctx.obj["tankopedia"]
         maps = ctx.obj["maps"]
         stats_type = ctx.obj["stats_type"]
+        player = ctx.obj["player"]
         wg_app_id = set_config(config, WG_APP_ID, "WG", "app_id", wg_app_id)
         region: Region
         if wg_region is None:
@@ -257,11 +272,10 @@ async def files(
         wg_rate_limit = set_config(
             config, WG_RATE_LIMIT, "WG", "rate_limit", wg_rate_limit
         )
-        player = set_config(config, 0, "WG", "wg_id", player)
 
     except KeyError as err:
-        error(f"could not read all the params: {err}")
-        typer.Exit(code=2)
+        error(f"could not read all the arguments: {err}")
+        typer.Exit(code=3)
         assert False, "trick Mypy..."
 
     stats = EventCounter("Upload replays")
@@ -290,6 +304,7 @@ async def files(
                         stats_cache=stats_cache,
                         tankopedia=tankopedia,
                         maps=maps,
+                        player=player,
                     )
                 )
             )
@@ -338,7 +353,11 @@ async def files(
         fields: FieldStore = ctx.obj["fields"]
         reports: Reports = ctx.obj["reports"]
         await analyze_replays(
-            replayQ=replayQ, stats_cache=stats_cache, fields=fields, reports=reports
+            replayQ=replayQ,
+            stats_cache=stats_cache,
+            fields=fields,
+            reports=reports,
+            player=player,
         )
         reports.print(fields=fields)
 
@@ -359,6 +378,7 @@ async def analyze_replays(
     stats_cache: StatsCache,
     fields: FieldStore,
     reports: Reports,
+    player: int = 0,
 ) -> EventCounter:
     """
     Apply stats to replays and perform analysis
@@ -394,6 +414,7 @@ async def replay_read_worker(
     stats_cache: StatsCache,
     tankopedia: WGApiWoTBlitzTankopedia,
     maps: Maps,
+    player: int = 0,
 ) -> EventCounter:
     """
     Async worker to read and pre-process replay files
@@ -424,7 +445,7 @@ async def replay_read_worker(
             continue
         try:
             if replay is not None:
-                await replay.enrich(tankopedia=tankopedia, maps=maps)
+                await replay.enrich(tankopedia=tankopedia, maps=maps, player=player)
                 await stats_cache.queue_stats(
                     replay, accountQ=accountQ, query_cache=query_cache
                 )

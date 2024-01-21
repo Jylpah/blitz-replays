@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source .venv/bin/activate
+
 for nb in *.ipynb; do
 	echo "updating docs from ${nb}"
 	md="${nb%%.ipynb}"

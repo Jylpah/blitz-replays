@@ -10,7 +10,7 @@ import logging
 from pyutils import MultilevelFormatter
 from blitzmodels import get_config_file
 
-from blitzreplays.metadata import tankopedia, maps
+from .metadata import tankopedia, maps
 
 logger = logging.getLogger()
 error = logger.error

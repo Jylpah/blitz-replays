@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import typer
-from asyncio import run
 from typing import Annotated, Optional
 import logging
 from pathlib import Path
@@ -12,7 +11,7 @@ from pyutils import MultilevelFormatter, AsyncTyper
 from pyutils.utils import set_config
 from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
 
-from blitzreplays.replays import upload, analyze
+from .replays import upload, analyze
 
 logger = logging.getLogger()
 error = logger.error
@@ -118,7 +117,7 @@ def cli(
             error(f"could not read config file {config_file}: {err}")
             raise typer.Exit(code=1)
 
-    tankopedia: WGApiWoTBlitzTankopedia | None
+    tankopedia: WGApiWoTBlitzTankopedia | None = None
     try:
         tankopedia_fn = Path(
             set_config(
@@ -131,13 +130,10 @@ def cli(
         )
         debug("tankopedia file: %s", str(tankopedia_fn))
 
-        if (
-            tankopedia := run(
-                WGApiWoTBlitzTankopedia.open_json(tankopedia_fn, exceptions=True)
-            )
-        ) is None:
-            error(f"could not parse tankopedia from {tankopedia_fn}")
-            raise typer.Exit(code=2)
+        with open(tankopedia_fn, "r", encoding="utf-8") as file:
+            if (tankopedia := WGApiWoTBlitzTankopedia.parse_str(file.read())) is None:
+                error(f"could not parse tankopedia from {tankopedia_fn}")
+                raise typer.Exit(code=2)
         debug("read %d tanks from %s", len(tankopedia), str(tankopedia_fn))
         ctx.obj["tankopedia"] = tankopedia
     except Exception as err:
@@ -156,9 +152,10 @@ def cli(
             )
         )
         debug("maps file: %s", str(maps_fn))
-        if (maps := run(Maps.open_json(maps_fn, exceptions=True))) is None:
-            error(f"could not parse maps from {maps_fn}")
-            raise typer.Exit(code=4)
+        with open(maps_fn, mode="r", encoding="utf-8") as file:
+            if (maps := Maps.parse_str(file.read())) is None:
+                error(f"could not parse maps from {maps_fn}")
+                raise typer.Exit(code=4)
         debug("read %d maps from %s", len(maps), str(maps_fn))
         ctx.obj["maps"] = maps
     except Exception as err:
