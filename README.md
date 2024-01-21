@@ -159,13 +159,38 @@ Commands:
 ### `blitz-replays upload` usage
 
 ```
-ERROR: cli(): error reading Tankopedia from /home/jarno/src/blitz-replays/.venv/lib/python3.11/site-packages/blitzmodels/tanks.json: asyncio.run() cannot be called from a running event loop
+Usage: blitz-replays upload [OPTIONS] REPLAYS...
+
+  upload replays to https://WoTinspector.com
+
+Arguments:
+  REPLAYS...  replays to upload  [required]
+
+Options:
+  --force                   force upload even JSON file exists
+  --private / --no-private  upload replays as private without listing those
+                            publicly (default=False)
+  --wi-rate-limit FLOAT     rate-limit for WoTinspector.com
+  --wi-auth-token TEXT      authentication token for WoTinsepctor.com
+  --help                    Show this message and exit.
 
 ```
 ### `blitz-replays analyze files` usage
 
 ```
-ERROR: cli(): error reading Tankopedia from /home/jarno/src/blitz-replays/.venv/lib/python3.11/site-packages/blitzmodels/tanks.json: asyncio.run() cannot be called from a running event loop
+Usage: blitz-replays analyze files [OPTIONS] REPLAYS...
+
+  analyze replays from JSON files
+
+Arguments:
+  REPLAYS...  replays to upload  [required]
+
+Options:
+  --wg-app-id TEXT                WG app ID
+  --wg-region [ru|eu|com|asia|china|BOTS]
+                                  WG API region (default: eu)
+  --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
+  --help                          Show this message and exit.
 
 ```
 
