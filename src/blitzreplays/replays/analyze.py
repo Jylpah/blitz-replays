@@ -27,7 +27,7 @@ from blitzmodels import (
 from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
 
 from .args import EnumStatsTypes
-from .analyze_models import (
+from .models_reports import (
     Category,
     EnrichedReplay,
     FieldStore,
