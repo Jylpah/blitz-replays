@@ -72,18 +72,33 @@ fields = "player.wr"
 format = ".1%"
 
 [[FIELDS.extra]]
-name = "A Platoon WR"
+name = "A Plat WR"
 filter = "allies:platoon"
 metric = "average"
 fields = "player.wr"
-format = "{:.1%}"
+format = ".1%"
 
 [[FIELDS.extra]]
-name = "E Platoon WR"
+name = "E Plat WR"
 filter = "enemies:platoon"
 metric = "average"
 fields = "player.wr"
 format = ".1%"
+
+[[FIELDS.extra]]
+name = "Allies DPB"
+filter = "allies:default"
+metric = "average"
+fields = "player.avgdmg"
+format = ".0f"
+
+[[FIELDS.extra]]
+name = "Enemies DPB"
+filter = "enemies:default"
+metric = "average"
+fields = "player.avgdmg"
+format = ".0f"
+
 
 [REPORTS]
 default = ["total", "battle_result", "mastery_badge"]
