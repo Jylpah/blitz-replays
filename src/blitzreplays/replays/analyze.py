@@ -158,7 +158,9 @@ def analyze(
             raise ValueError(f"FIELDS is not TOML Table: {type(config_item)}")
 
         fld: Dict[str, str]
-        for field_mode in fields_param.split("+"):
+        if fields_param.startswith("+"):
+            fields_param = f"default,{fields_param[1:]}"
+        for field_mode in fields_param.split(","):
             try:
                 for fld in config_item[field_mode].unwrap():
                     debug(
