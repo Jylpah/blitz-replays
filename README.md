@@ -1,6 +1,37 @@
 # blitz-replays
 
-Set of command line tools to upload and analyze WoT Blitz replays.
+Set of command line tools to upload and analyze WoT Blitz replays. 
+
+* `blitz-replays`: upload and analyze Blitz replays
+* `blitz-data`: extract game metadata (maps and tankopedia) required by `blitz-replays` 
+
+## Example
+
+```
+% blitz-replays analyze files 2023-12-25
+Reading replays |████████████████████████████████████████| 65 in 0.5s (129.37/s)
+Fetching player stats |████████████████████████████████████████✗︎ (!) 781/775 [101%] in 1.5s (542.47/s)
+
+TOTAL
+     Battles  WR        DPB    KPB    Spot  Top tier      DR  Surv%    Allies WR    Enemies WR
+-----  ---------  ------  -----  -----  ------  ----------  ----  -------  -----------  ------------
+Total         65  63.08%   1836   1.23    1.54  46%         1.59  55%      51.3%        51.5%
+
+BATTLE RESULT
+    Battles  WR         DPB    KPB    Spot  Top tier      DR  Surv%    Allies WR    Enemies WR
+----  ---------  -------  -----  -----  ------  ----------  ----  -------  -----------  ------------
+Loss         24  0.00%     1716   1       1.42  50%         1.07  8%       50.6%        51.7%
+Win          41  100.00%   1906   1.37    1.61  44%         2.13  83%      51.6%        51.3%
+
+BATTLE CLASS
+         Battles  WR         DPB    KPB    Spot  Top tier      DR  Surv%    Allies WR    Enemies WR
+---------  ---------  -------  -----  -----  ------  ----------  ----  -------  -----------  ------------
+-                 36  33.33%    1514   0.78    1.42  44%         1.07  22%      50.9%        51.9%
+1st Class          1  100.00%   3537   4       2     100%        2.23  100%     47.3%        50.4%
+2nd Class          9  100.00%   2841   2.22    2.44  56%         2.69  100%     51.1%        50.0%
+3rd Class         18  100.00%   1807   1.33    1.33  44%         2.69  94%      52.4%        51.5%
+Mastery            1  100.00%   3203   4       1     0%          2.89  100%     47.3%        50.1%
+```
 
 ## Status
 
@@ -26,6 +57,7 @@ pip install git+https://github.com/Jylpah/blitz-replays.git
 pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
 ```
 
+# Usage
 
 ## `blitz-data` usage
 
@@ -173,6 +205,29 @@ Options:
   --wi-rate-limit FLOAT     rate-limit for WoTinspector.com
   --wi-auth-token TEXT      authentication token for WoTinsepctor.com
   --help                    Show this message and exit.
+
+```
+### `blitz-replays analyze` usage
+
+```
+Usage: blitz-replays analyze [OPTIONS] COMMAND [ARGS]...
+
+  analyze replays
+
+Options:
+  --analyze-config TEXT           TOML config file for 'analyze' reports
+  --stats-type [player|tier|tank]
+                                  stats to use for player stats
+  --fields TEXT                   set report fields, combine field modes with
+                                  '+'  [default: default]
+  --reports TEXT                  reports to create. use '+' to add extra
+                                  reports  [default: default]
+  --player INTEGER                player to analyze (WG account_id), default:
+                                  player who recorded the replay
+  --help                          Show this message and exit.
+
+Commands:
+  files  analyze replays from JSON files
 
 ```
 ### `blitz-replays analyze files` usage

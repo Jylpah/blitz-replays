@@ -27,7 +27,7 @@ from blitzmodels import (
 from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
 
 from .args import EnumStatsTypes
-from .analyze_models import (
+from .models_reports import (
     Category,
     EnrichedReplay,
     FieldStore,
@@ -158,7 +158,9 @@ def analyze(
             raise ValueError(f"FIELDS is not TOML Table: {type(config_item)}")
 
         fld: Dict[str, str]
-        for field_mode in fields_param.split("+"):
+        if fields_param.startswith("+"):
+            fields_param = f"default,{fields_param[1:]}"
+        for field_mode in fields_param.split(","):
             try:
                 for fld in config_item[field_mode].unwrap():
                     debug(

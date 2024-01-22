@@ -742,7 +742,7 @@ class Totals(Categorization):
 Reports.register(Totals)
 
 
-class IntCategorization(Categorization):
+class ClassCategorization(Categorization):
     """
     Categorize replays based on a replay field's integer value.
     """
@@ -768,7 +768,67 @@ class IntCategorization(Categorization):
         return None
 
 
-Reports.register(IntCategorization)
+Reports.register(ClassCategorization)
+
+
+class NumberCategorization(Categorization):
+    """
+    "protagonist": ["account_id", "number"],
+    "battle_i": ["Battle #", "number"],
+    "enemies_destroyed": ["Player Kills", "number"],
+    "enemies_spotted": ["Player Spots", "number"],
+    "tank_tier": ["Tank Tier", "number"],
+    """
+
+    categorization = "number"
+
+
+class StrCategorization(Categorization):
+    """
+    "player_name": ["Player", "string", 25],
+    "tank_name": ["Tank", "string", 25],
+    "map_name": ["Map", "string", 20],
+    "battle": ["Battle", "string", 40],
+    """
+
+    categorization = "string"
+
+
+class BucketCategorization(Categorization):
+    """
+    "allies_battles": [
+            "Player Battles",
+            "bucket",
+            [0, 500, 1000, 2500, 5e3, 10e3, 15e3, 25e3],
+            "int",
+        ],
+        "allies_damage_dealt": [
+            "Player Avg Dmg",
+            "bucket",
+            [0, 500, 1000, 1250, 1500, 1750, 2000, 2500],
+            "int",
+        ],
+        "enemies_wins": [
+            "Enemies WR",
+            "bucket",
+            [0, 0.35, 0.45, 0.50, 0.55, 0.65],
+            "%",
+        ],
+        "enemies_battles": [
+            "Player Battles",
+            "bucket",
+            [0, 500, 1000, 2500, 5e3, 10e3, 15e3, 25e3],
+            "int",
+        ],
+        "enemies_damage_dealt": [
+            "Player Avg Dmg",
+            "bucket",
+            [0, 500, 1000, 1250, 1500, 1750, 2000, 2500],
+            "int",
+        ],
+    """
+
+    categorization = "bucket"
 
 
 ############################################################################################
