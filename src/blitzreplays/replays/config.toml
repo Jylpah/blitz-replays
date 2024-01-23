@@ -14,7 +14,7 @@ format = "d"
 name = "WR"
 metric = "average_if"
 fields = "battle_result=1"
-format = ".2%"
+format = ".1%"
 
 [[FIELDS.default]]
 name = "DPB"
