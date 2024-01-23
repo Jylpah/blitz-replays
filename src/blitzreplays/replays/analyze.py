@@ -122,6 +122,7 @@ def analyze(
                 )
         debug("--stats-type=%s", stats_type_param.value)
         ctx.obj["stats_type"] = stats_type_param.value
+        # TODO: merge / update user config file with defaults
         if analyze_config_fn is None:
             def_config: Traversable = importlib.resources.files(
                 "blitzreplays.replays"

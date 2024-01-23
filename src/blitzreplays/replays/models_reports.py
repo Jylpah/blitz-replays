@@ -771,7 +771,8 @@ class ClassCategorization(Categorization):
 Reports.register(ClassCategorization)
 
 
-class NumberCategorization(Categorization):
+# TODO: IntCategorization
+class IntCategorization(Categorization):
     """
     "protagonist": ["account_id", "number"],
     "battle_i": ["Battle #", "number"],
@@ -783,6 +784,7 @@ class NumberCategorization(Categorization):
     categorization = "number"
 
 
+# TODO: StrCategorization
 class StrCategorization(Categorization):
     """
     "player_name": ["Player", "string", 25],
@@ -794,6 +796,7 @@ class StrCategorization(Categorization):
     categorization = "string"
 
 
+# TODO: BucketCategorization
 class BucketCategorization(Categorization):
     """
     "allies_battles": [
