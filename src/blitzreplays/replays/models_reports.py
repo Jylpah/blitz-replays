@@ -722,12 +722,15 @@ class Reports:
         try:
             cat: Type[Categorization] = self._db[categorization]
             if key in self._reports:
-                raise KeyError(f"duplicate definition of report='{key}'")
+                raise ValueError(f"duplicate definition of report='{key}'")
             self._reports[key] = cat(name=name, **kwargs)
         except KeyError as err:
             error(
                 f"could not create report: key={key}, name={name}, categorization={categorization}, {', '.join('='.join([k,v]) for k,v in kwargs.items())}"
             )
+            error(err)
+            raise
+        except ValueError as err:
             error(err)
             raise
         except Exception as err:
@@ -829,9 +832,6 @@ class NumberCategorization(Categorization):
     """
 
     categorization = "number"
-
-    # def __init__(self, name: str, field: str, categories: List[str]):
-    #     super().__init__(name=name, field=field)
 
     def get_category(self, replay: EnrichedReplay) -> Category | None:
         try:
