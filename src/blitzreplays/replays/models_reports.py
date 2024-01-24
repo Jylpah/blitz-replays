@@ -767,7 +767,7 @@ class Totals(Categorization):
     categorization = "total"
 
     def __init__(self, name: str):
-        super().__init__(name="Total")
+        super().__init__(name="Total", field="exp")
         self._categories["Total"] = Category()
 
     def get_category(self, replay: EnrichedReplay) -> Category | None:
@@ -818,8 +818,8 @@ class ClassCategorization(Categorization):
 Reports.register(ClassCategorization)
 
 
-# TODO: IntCategorization
-class IntCategorization(Categorization):
+# TODO: NumberCategorization
+class NumberCategorization(Categorization):
     """
     "protagonist": ["account_id", "number"],
     "battle_i": ["Battle #", "number"],
@@ -829,6 +829,23 @@ class IntCategorization(Categorization):
     """
 
     categorization = "number"
+
+    # def __init__(self, name: str, field: str, categories: List[str]):
+    #     super().__init__(name=name, field=field)
+
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
+        try:
+            return self._categories[self.get_category_str(replay)]
+        except AttributeError as err:
+            error(
+                f"field={self.category_field} not found in replay: {replay.title}: {err}"
+            )
+        except KeyError as err:
+            error(f"{type(err)}: {err}")
+        return None
+
+
+Reports.register(NumberCategorization)
 
 
 # TODO: StrCategorization
