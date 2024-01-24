@@ -14,7 +14,6 @@ from blitzmodels import (
     AccountId,
     EnumVehicleTypeStr,
     Maps,
-    Map,
     Tank,
     TankStat,
     TankId,
@@ -230,7 +229,7 @@ class EnrichedReplay(Replay):
     player: AccountId = -1
     plat_mate: List[AccountId] = Field(default_factory=list)
     battle_tier: int = 0
-    map: Map | None = None
+    map: str = "-"
     top_tier: bool = False
 
     model_config = ConfigDict(
@@ -314,7 +313,7 @@ class EnrichedReplay(Replay):
             self.allies.remove(self.plat_mate[0])
 
         try:
-            self.map = maps[self.map_id]
+            self.map = maps[self.map_id].name
         except (KeyError, ValueError):
             error(f"no map (id={self.map_id}) in Maps file")
 
