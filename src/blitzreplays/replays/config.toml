@@ -101,7 +101,7 @@ format = ".0f"
 
 
 [REPORTS]
-default = ["total", "battle_result", "tank_tier", "mastery_badge"]
+default = ["total", "battle_result", "tank_tier", "mastery_badge", "avg_dmg"]
 extra = ["is_premium", "battle_tier", "map"]
 
 
@@ -142,3 +142,19 @@ field = "battle_tier"
 name = "Map"
 categorization = "string"
 field = "map"
+
+[REPORT.avg_dmg]
+name = "Average dmg"
+categorization = "bucket"
+field = "player.damage_made"
+buckets = [0, 1000, 1500, 2000, 2500, 3000, 4000, 5000]
+bucket_labels = [
+    "0 - 1000",
+    "1000 - 1500",
+    "1500 - 2000",
+    "2000 - 2500",
+    "2500 - 3000",
+    "3000 - 4000",
+    "4000 - 5000",
+    "5000+",
+]
