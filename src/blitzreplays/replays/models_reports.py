@@ -622,10 +622,13 @@ class Categorization(ABC):
 
     categorization: ClassVar[str] = "<NOT DEFINED>"
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, field: str):
         self.name: str = name
         # self._battles: int = 0
-        # self._field: str = field
+        is_player_field: bool
+        field, is_player_field = self.parse_field(field)
+        self._field: str = field
+        self._is_player_field: bool = is_player_field
         self._categories: Dict[CategoryKey, Category] = defaultdict(default_Category)
 
     @property
@@ -664,6 +667,42 @@ class Categorization(ABC):
                 error("category=%s: %s: %s", cat_key, type(err), str(err))
         debug("data=%s", str(data))
         print(tabulate(data, headers=header))
+
+    def parse_field(self, field: str) -> Tuple[str, bool]:
+        """parse field and check is it a player field"""
+        if field.startswith("player."):
+            return field.removeprefix("player."), True
+        else:
+            return field, False
+
+    @property
+    def category_field(self) -> str:
+        """return full category field"""
+        if self._is_player_field:
+            return "player." + self._field
+        else:
+            return self._field
+
+    def get_category_int(self, replay: EnrichedReplay) -> int:
+        """Return integer field value"""
+        if self._is_player_field:
+            return int(getattr(replay.players_dict[replay.player], self._field))
+        else:
+            return int(getattr(replay, self._field))
+
+    def get_category_float(self, replay: EnrichedReplay) -> float:
+        """Get category field's value as float for the replay"""
+        if self._is_player_field:
+            return float(getattr(replay.players_dict[replay.player], self._field))
+        else:
+            return float(getattr(replay, self._field))
+
+    def get_category_str(self, replay: EnrichedReplay) -> str:
+        """Get category field's value as str for the replay"""
+        if self._is_player_field:
+            return str(getattr(replay.players_dict[replay.player], self._field))
+        else:
+            return str(getattr(replay, self._field))
 
 
 class Reports:
