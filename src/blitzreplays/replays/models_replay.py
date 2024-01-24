@@ -19,6 +19,7 @@ from blitzmodels import (
     TankId,
     WGApiWoTBlitzTankopedia,
 )
+from result import Result, Err, Ok
 from blitzmodels.wotinspector.wi_apiv2 import Replay, PlayerData
 from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
 
@@ -255,15 +256,15 @@ class EnrichedReplay(Replay):
         tankopedia: WGApiWoTBlitzTankopedia,
         maps: Maps,
         player: AccountId = 0,
-    ):
+    ) -> Result[None, str]:
         """
         Prepare the (static) replay data for the particular analysis
         """
 
         data: EnrichedPlayerData
         if not self.is_complete:
-            message(f"replay is incomplete: {self.title}")
-            raise ValueError(f"replay is incomplete: {self.title}")
+            # message(f"replay is incomplete: {self.title}")
+            return Err(f"replay is incomplete: {self.title}")
 
         # remove tournament observe
         # message()rs
@@ -310,10 +311,10 @@ class EnrichedReplay(Replay):
             elif self.battle_result == EnumBattleResult.loss:
                 self.battle_result = EnumBattleResult.win
         else:
-            raise ValueError(f"no account_id={self.player} in the replay")
+            return Err(f"no account_id={self.player} in the replay")
 
         if self.player not in self.players_dict:
-            raise ValueError(f"account_id={self.player} is not a player in the replay")
+            return Err(f"account_id={self.player} is not a player in the replay")
         # set top_tier
         self.top_tier = self.players_dict[self.player].tank_tier == self.battle_tier
 
@@ -334,7 +335,8 @@ class EnrichedReplay(Replay):
         try:
             self.map = maps[self.map_id].name
         except (KeyError, ValueError):
-            error(f"no map (id={self.map_id}) in Maps file")
+            verbose(f"WARNING: no map (id={self.map_id}) in Maps file")
+        return Ok(None)
 
     def get_players(
         self,

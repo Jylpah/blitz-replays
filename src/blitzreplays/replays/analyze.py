@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from configparser import ConfigParser
 from alive_progress import alive_bar  # type: ignore
+from result import is_ok, is_err
 
 from importlib.resources.abc import Traversable
 from importlib.resources import as_file
@@ -452,14 +453,17 @@ async def replay_read_worker(
             stats.log("errors")
             continue
         try:
-            if replay.is_complete:
-                await replay.enrich(tankopedia=tankopedia, maps=maps, player=player)
+            if is_ok(
+                res := await replay.enrich(
+                    tankopedia=tankopedia, maps=maps, player=player
+                )
+            ):
                 await stats_cache.queue_stats(
                     replay, accountQ=accountQ, query_cache=query_cache
                 )
                 await replayQ.put(replay)
-            else:
-                verbose(f"replay is incomplete: {replay.title}")
+            elif is_err(res):
+                message(f"{replay.title}: {res.err_value}")
                 stats.log("incomplete")
         except Exception as err:
             if logger.getEffectiveLevel() == logging.WARNING:  # normal
