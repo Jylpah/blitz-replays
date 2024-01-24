@@ -16,6 +16,7 @@ from dataclasses import dataclass, field as data_field
 from re import compile, match
 import re
 from collections import defaultdict
+from sortedcollections import NearestDict  # type: ignore
 from tabulate import tabulate  # type: ignore
 
 
@@ -622,10 +623,13 @@ class Categorization(ABC):
 
     categorization: ClassVar[str] = "<NOT DEFINED>"
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, field: str):
         self.name: str = name
         # self._battles: int = 0
-        # self._field: str = field
+        is_player_field: bool
+        field, is_player_field = self.parse_field(field)
+        self._field: str = field
+        self._is_player_field: bool = is_player_field
         self._categories: Dict[CategoryKey, Category] = defaultdict(default_Category)
 
     @property
@@ -665,6 +669,42 @@ class Categorization(ABC):
         debug("data=%s", str(data))
         print(tabulate(data, headers=header))
 
+    def parse_field(self, field: str) -> Tuple[str, bool]:
+        """parse field and check is it a player field"""
+        if field.startswith("player."):
+            return field.removeprefix("player."), True
+        else:
+            return field, False
+
+    @property
+    def category_field(self) -> str:
+        """return full category field"""
+        if self._is_player_field:
+            return "player." + self._field
+        else:
+            return self._field
+
+    def get_category_int(self, replay: EnrichedReplay) -> int:
+        """Return integer field value"""
+        if self._is_player_field:
+            return int(getattr(replay.players_dict[replay.player], self._field))
+        else:
+            return int(getattr(replay, self._field))
+
+    def get_category_float(self, replay: EnrichedReplay) -> float:
+        """Get category field's value as float for the replay"""
+        if self._is_player_field:
+            return float(getattr(replay.players_dict[replay.player], self._field))
+        else:
+            return float(getattr(replay, self._field))
+
+    def get_category_str(self, replay: EnrichedReplay) -> str:
+        """Get category field's value as str for the replay"""
+        if self._is_player_field:
+            return str(getattr(replay.players_dict[replay.player], self._field))
+        else:
+            return str(getattr(replay, self._field))
+
 
 class Reports:
     """
@@ -683,12 +723,15 @@ class Reports:
         try:
             cat: Type[Categorization] = self._db[categorization]
             if key in self._reports:
-                raise KeyError(f"duplicate definition of report='{key}'")
+                raise ValueError(f"duplicate definition of report='{key}'")
             self._reports[key] = cat(name=name, **kwargs)
         except KeyError as err:
             error(
                 f"could not create report: key={key}, name={name}, categorization={categorization}, {', '.join('='.join([k,v]) for k,v in kwargs.items())}"
             )
+            error(err)
+            raise
+        except ValueError as err:
             error(err)
             raise
         except Exception as err:
@@ -728,7 +771,7 @@ class Totals(Categorization):
     categorization = "total"
 
     def __init__(self, name: str):
-        super().__init__(name="Total")
+        super().__init__(name="Total", field="exp")
         self._categories["Total"] = Category()
 
     def get_category(self, replay: EnrichedReplay) -> Category | None:
@@ -750,15 +793,14 @@ class ClassCategorization(Categorization):
     categorization = "category"
 
     def __init__(self, name: str, field: str, categories: List[str]):
-        super().__init__(name=name)
-        self._field: str = field
+        super().__init__(name=name, field=field)
         self._category_cache: Dict[int, str] = dict()
         for ndx, cat in enumerate(categories):
-            self._category_cache[ndx] = cat
+            self._category_cache[int(ndx)] = cat
 
     def get_category(self, replay: EnrichedReplay) -> Category | None:
         try:
-            field_value: int = getattr(replay, self._field)
+            field_value: int = self.get_category_int(replay)
             category: CategoryKey = self._category_cache[field_value]
             return self._categories[category]
         except AttributeError:
@@ -766,6 +808,15 @@ class ClassCategorization(Categorization):
         except KeyError as err:
             error(err)
         return None
+
+    @property
+    def categories(self) -> List[CategoryKey]:
+        """Get category keys in in order specified"""
+        return [
+            cat
+            for cat in self._category_cache.values().__reversed__()
+            if cat in self._categories
+        ]
 
 
 Reports.register(ClassCategorization)
@@ -782,6 +833,20 @@ class NumberCategorization(Categorization):
 
     categorization = "number"
 
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
+        try:
+            return self._categories[self.get_category_str(replay)]
+        except AttributeError as err:
+            error(
+                f"field={self.category_field} not found in replay: {replay.title}: {err}"
+            )
+        except KeyError as err:
+            error(f"{type(err)}: {err}")
+        return None
+
+
+Reports.register(NumberCategorization)
+
 
 class StrCategorization(Categorization):
     """
@@ -792,6 +857,20 @@ class StrCategorization(Categorization):
     """
 
     categorization = "string"
+
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
+        try:
+            return self._categories[self.get_category_str(replay)]
+        except AttributeError as err:
+            error(
+                f"field={self.category_field} not found in replay: {replay.title}: {err}"
+            )
+        except KeyError as err:
+            error(f"{type(err)}: {err}")
+        return None
+
+
+Reports.register(StrCategorization)
 
 
 class BucketCategorization(Categorization):
@@ -830,6 +909,53 @@ class BucketCategorization(Categorization):
 
     categorization = "bucket"
 
+    def __init__(
+        self,
+        name: str,
+        field: str,
+        buckets: List[int | float],
+        bucket_labels: List[str],
+    ):
+        super().__init__(name=name, field=field)
+        self._buckets: NearestDict[float, str] = NearestDict(
+            rounding=NearestDict.NEAREST_PREV
+        )
+
+        if len(buckets) != len(bucket_labels):
+            message(
+                f"check report config: the number of 'buckets' ({len(buckets)}) and 'bucket_labels' ({bucket_labels}) does not match"
+            )
+        debug(f"buckets={buckets}")
+        debug(f"labels={bucket_labels}")
+        for bucket_start, label in zip(buckets, bucket_labels):
+            # debug(f"bucket_start={bucket_start}, label={label}")
+            self._buckets[bucket_start] = label
+
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
+        try:
+            field_value: float = self.get_category_float(replay)
+            category: CategoryKey = self._buckets[field_value]
+            debug(
+                f"replay={replay.title}: field={self.category_field}, value={field_value}, category={category}"
+            )
+            return self._categories[category]
+        except AttributeError:
+            error(f"no field={self._field} found in replay: {replay.title}")
+        except KeyError as err:
+            error(f"{type(err)}: {err}")
+        return None
+
+    @property
+    def categories(self) -> List[CategoryKey]:
+        """Get category keys in in order specified"""
+        return [
+            cat
+            for cat in self._buckets.values().__reversed__()
+            if cat in self._categories
+        ]
+
+
+Reports.register(BucketCategorization)
 
 ############################################################################################
 #

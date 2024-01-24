@@ -260,6 +260,12 @@ class APICache(ABC):
 
 
 class PlayertatsAPICache(APICache):
+    """
+    Cache player stats into memory or database backend for better search performance
+    """
+
+    # TODO: add database cache
+
     def __init__(self: Self, wg_api: WGApi):
         super().__init__(wg_api)
 
@@ -270,7 +276,7 @@ class PlayertatsAPICache(APICache):
         """
         async worker to fetch stats from WG API
         """
-        # TODO: add database cache
+
         stats = EventCounter("WG API")
         regionQ: Dict[Region, Set[AccountId]] = dict()
         # res: Dict[str, PlayerStats]
@@ -390,8 +396,10 @@ class PlayertatsAPICache(APICache):
 
 class TankStatsAPICache(APICache):
     """
-    Helper class to store tank stats in a dict vs list for search performance
+    Cache tank stats into memory or database backend for better search performance
     """
+
+    # TODO: add database cache
 
     def __init__(self: Self, wg_api: WGApi, tankopedia: WGApiWoTBlitzTankopedia):
         super().__init__(wg_api)

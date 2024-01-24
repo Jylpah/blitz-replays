@@ -14,7 +14,7 @@ format = "d"
 name = "WR"
 metric = "average_if"
 fields = "battle_result=1"
-format = ".2%"
+format = ".1%"
 
 [[FIELDS.default]]
 name = "DPB"
@@ -101,8 +101,8 @@ format = ".0f"
 
 
 [REPORTS]
-default = ["total", "battle_result", "mastery_badge"]
-extra = ["is_premium"]
+default = ["total", "battle_result", "tank_tier", "mastery_badge", "avg_dmg"]
+extra = ["is_premium", "battle_tier", "map"]
 
 
 [REPORT.total]
@@ -115,6 +115,12 @@ categorization = "category"
 field = "battle_result"
 categories = ["Loss", "Win", "Draw"]
 
+[REPORT.tank_tier]
+name = "Tank tier"
+categorization = "category"
+field = "player.tank_tier"
+categories = ["-", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+
 [REPORT.mastery_badge]
 name = "Mastery"
 categorization = "category"
@@ -124,5 +130,31 @@ categories = ["-", "3rd Class", "2nd Class", "1st Class", "Mastery"]
 [REPORT.is_premium]
 name = "Tank type"
 categorization = "category"
-field = "player.tank.is_premium"
+field = "player.tank_is_premium"
 categories = ["Tech tree", "Premium"]
+
+[REPORT.battle_tier]
+name = "Battle tier"
+categorization = "number"
+field = "battle_tier"
+
+[REPORT.map]
+name = "Map"
+categorization = "string"
+field = "map"
+
+[REPORT.avg_dmg]
+name = "Average dmg"
+categorization = "bucket"
+field = "player.damage_made"
+buckets = [0, 1000, 1500, 2000, 2500, 3000, 4000, 5000]
+bucket_labels = [
+    "0 - 1000",
+    "1000 - 1500",
+    "1500 - 2000",
+    "2000 - 2500",
+    "2500 - 3000",
+    "3000 - 4000",
+    "4000 - 5000",
+    "5000+",
+]
