@@ -245,10 +245,8 @@ class EnrichedReplay(Replay):
                 self.players_dict[player_data.dbid] = EnrichedPlayerData.model_validate(
                     player_data
                 )
-            except KeyError as err:
-                debug(
-                    f"account_id={err} not found in replay. Maybe a tournament observer?"
-                )
+            except Exception:
+                error(f"could not enrich player data for account_id={player_data.dbid}")
         self.players_data = list()
         return self
 
@@ -265,6 +263,18 @@ class EnrichedReplay(Replay):
         data: EnrichedPlayerData
         if not self.is_complete:
             raise ValueError(f"replay is incomplete: {self.title}")
+
+        # remove tournament observers
+        players: List[AccountId] = list()
+        for player in self.allies:
+            if player in self.players_dict:
+                players.append(player)
+        self.allies = players
+        players = list()
+        for player in self.enemies:
+            if player in self.players_dict:
+                players.append(player)
+        self.enemies = players
 
         # add tanks
         for data in self.players_dict.values():
@@ -298,8 +308,10 @@ class EnrichedReplay(Replay):
             elif self.battle_result == EnumBattleResult.loss:
                 self.battle_result = EnumBattleResult.win
         else:
-            raise ValueError("no account_id=%d in the replay", self.player)
+            raise ValueError(f"no account_id={self.player} in the replay")
 
+        if self.player not in self.players_dict:
+            raise ValueError(f"account_id={self.player} is not a player in the replay")
         # set top_tier
         self.top_tier = self.players_dict[self.player].tank_tier == self.battle_tier
 

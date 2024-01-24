@@ -24,7 +24,7 @@ from blitzmodels import (
     WGApi,
     WGApiWoTBlitzTankopedia,
 )
-from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
+# from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
 
 from .args import EnumStatsTypes
 from .models_reports import (
@@ -430,24 +430,25 @@ async def replay_read_worker(
         try:
             if (replay := await EnrichedReplay.open_json(fn)) is not None:
                 stats.log("read")
-            elif (old_replay := await ReplayJSON.open_json(fn)) is not None:
-                stats.log("read (v1)")
-                debug(f"converting old replay file format: {fn}")
-                if (
-                    replay := EnrichedReplay.from_obj(old_replay, in_type=ReplayJSON)
-                ) is None:
-                    error(
-                        f"""could not convert replay to the v2 format: {fn}
-                            please re-fetch the replay JSON file with 'blitz-replays update'"""
-                    )
-                    stats.log("conversion errors")
-                    raise ValueError()
+            # elif (old_replay := await ReplayJSON.open_json(fn)) is not None:
+            #     stats.log("read (v1)")
+            #     debug(f"converting old replay file format: {fn}")
+            #     if (
+            #         replay := EnrichedReplay.from_obj(old_replay, in_type=ReplayJSON)
+            #     ) is None:
+            #         message(
+            #             f"""ERROR: could not convert replay to the v2 format: {fn.name}
+            #                 please re-fetch the replay JSON file with 'blitz-replays upload --force'"""
+            #         )
+            #         stats.log("conversion errors")
+            #         raise ValueError()
             else:
-                verbose(f"could not read replay: {fn.name}")
+                message(f"ERROR: could not read replay: {fn.name}")
                 stats.log("errors")
                 continue
         except Exception as err:
-            error(f"could not read replay: {fn}: {type(err)}: {err}")
+            message(f"ERROR: could not read replay: {fn.name}")
+            debug("%s: %s", type(err), err)
             stats.log("errors")
             continue
         try:
@@ -461,7 +462,15 @@ async def replay_read_worker(
                 verbose(f"replay is incomplete: {replay.title}")
                 stats.log("incomplete")
         except Exception as err:
-            error(f"could not process replay: {fn}: {type(err)}: {err}")
+            if logger.getEffectiveLevel() == logging.WARNING:  # normal
+                message(f"ERROR: could not process replay: {fn}")
+            else:
+                verbose(
+                    "could not process replay: %s: %s: %s",
+                    str(fn.name),
+                    type(err),
+                    err,
+                )
             stats.log("processing errors")
 
     await replayQ.finish()
