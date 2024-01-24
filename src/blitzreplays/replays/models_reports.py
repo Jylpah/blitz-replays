@@ -859,6 +859,20 @@ class StrCategorization(Categorization):
 
     categorization = "string"
 
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
+        try:
+            return self._categories[self.get_category_str(replay)]
+        except AttributeError as err:
+            error(
+                f"field={self.category_field} not found in replay: {replay.title}: {err}"
+            )
+        except KeyError as err:
+            error(f"{type(err)}: {err}")
+        return None
+
+
+Reports.register(StrCategorization)
+
 
 # TODO: BucketCategorization
 class BucketCategorization(Categorization):
