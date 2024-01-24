@@ -262,9 +262,11 @@ class EnrichedReplay(Replay):
 
         data: EnrichedPlayerData
         if not self.is_complete:
+            message(f"replay is incomplete: {self.title}")
             raise ValueError(f"replay is incomplete: {self.title}")
 
-        # remove tournament observers
+        # remove tournament observe
+        # message()rs
         players: List[AccountId] = list()
         for player in self.allies:
             if player in self.players_dict:
