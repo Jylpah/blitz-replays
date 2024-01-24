@@ -461,7 +461,7 @@ async def replay_read_worker(
                 verbose(f"replay is incomplete: {replay.title}")
                 stats.log("incomplete")
         except Exception as err:
-            error(f"could not enrich replay: {fn}: {type(err)}: {err}")
+            error(f"could not process replay: {fn}: {type(err)}: {err}")
             stats.log("processing errors")
 
     await replayQ.finish()

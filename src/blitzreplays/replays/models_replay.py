@@ -241,9 +241,12 @@ class EnrichedReplay(Replay):
     @model_validator(mode="after")
     def read_players_dict(self) -> Self:
         for player_data in self.players_data:
-            self.players_dict[player_data.dbid] = EnrichedPlayerData.model_validate(
-                player_data
-            )
+            try:
+                self.players_dict[player_data.dbid] = EnrichedPlayerData.model_validate(
+                    player_data
+                )
+            except KeyError as err:
+                verbose(f"account_id={err} not found in replay")
         self.players_data = list()
         return self
 
