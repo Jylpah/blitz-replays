@@ -124,5 +124,5 @@ categories = ["-", "3rd Class", "2nd Class", "1st Class", "Mastery"]
 [REPORT.is_premium]
 name = "Tank type"
 categorization = "category"
-field = "player.tank.is_premium"
+field = "player.tank_is_premium"
 categories = ["Tech tree", "Premium"]
