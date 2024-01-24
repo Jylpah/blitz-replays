@@ -789,15 +789,14 @@ class ClassCategorization(Categorization):
     categorization = "category"
 
     def __init__(self, name: str, field: str, categories: List[str]):
-        super().__init__(name=name)
-        self._field: str = field
+        super().__init__(name=name, field=field)
         self._category_cache: Dict[int, str] = dict()
         for ndx, cat in enumerate(categories):
-            self._category_cache[ndx] = cat
+            self._category_cache[int(ndx)] = cat
 
     def get_category(self, replay: EnrichedReplay) -> Category | None:
         try:
-            field_value: int = getattr(replay, self._field)
+            field_value: int = self.get_category_int(replay)
             category: CategoryKey = self._category_cache[field_value]
             return self._categories[category]
         except AttributeError:
@@ -805,6 +804,15 @@ class ClassCategorization(Categorization):
         except KeyError as err:
             error(err)
         return None
+
+    @property
+    def categories(self) -> List[CategoryKey]:
+        """Get category keys in in order specified"""
+        return [
+            cat
+            for cat in self._category_cache.values().__reversed__()
+            if cat in self._categories
+        ]
 
 
 Reports.register(ClassCategorization)
