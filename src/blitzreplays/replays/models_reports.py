@@ -16,6 +16,7 @@ from dataclasses import dataclass, field as data_field
 from re import compile, match
 import re
 from collections import defaultdict
+from sortedcollections import NearestDict  # type: ignore
 from tabulate import tabulate  # type: ignore
 
 
@@ -821,7 +822,6 @@ class ClassCategorization(Categorization):
 Reports.register(ClassCategorization)
 
 
-# TODO: NumberCategorization
 class NumberCategorization(Categorization):
     """
     "protagonist": ["account_id", "number"],
@@ -848,7 +848,6 @@ class NumberCategorization(Categorization):
 Reports.register(NumberCategorization)
 
 
-# TODO: StrCategorization
 class StrCategorization(Categorization):
     """
     "player_name": ["Player", "string", 25],
@@ -874,7 +873,6 @@ class StrCategorization(Categorization):
 Reports.register(StrCategorization)
 
 
-# TODO: BucketCategorization
 class BucketCategorization(Categorization):
     """
     "allies_battles": [
@@ -911,6 +909,53 @@ class BucketCategorization(Categorization):
 
     categorization = "bucket"
 
+    def __init__(
+        self,
+        name: str,
+        field: str,
+        buckets: List[int | float],
+        bucket_labels: List[str],
+    ):
+        super().__init__(name=name, field=field)
+        self._buckets: NearestDict[float, str] = NearestDict(
+            rounding=NearestDict.NEAREST_PREV
+        )
+
+        if len(buckets) != len(bucket_labels):
+            message(
+                f"check report config: the number of 'buckets' ({len(buckets)}) and 'bucket_labels' ({bucket_labels}) does not match"
+            )
+        debug(f"buckets={buckets}")
+        debug(f"labels={bucket_labels}")
+        for bucket_start, label in zip(buckets, bucket_labels):
+            # debug(f"bucket_start={bucket_start}, label={label}")
+            self._buckets[bucket_start] = label
+
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
+        try:
+            field_value: float = self.get_category_float(replay)
+            category: CategoryKey = self._buckets[field_value]
+            debug(
+                f"replay={replay.title}: field={self.category_field}, value={field_value}, category={category}"
+            )
+            return self._categories[category]
+        except AttributeError:
+            error(f"no field={self._field} found in replay: {replay.title}")
+        except KeyError as err:
+            error(f"{type(err)}: {err}")
+        return None
+
+    @property
+    def categories(self) -> List[CategoryKey]:
+        """Get category keys in in order specified"""
+        return [
+            cat
+            for cat in self._buckets.values().__reversed__()
+            if cat in self._categories
+        ]
+
+
+Reports.register(BucketCategorization)
 
 ############################################################################################
 #
