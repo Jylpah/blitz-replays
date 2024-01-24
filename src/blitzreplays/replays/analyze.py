@@ -216,7 +216,7 @@ def analyze(
         debug("Reports EOF -----------------------------------------------------")
 
     except Exception as err:
-        error(f"could not parse analyze TOML config file {err}")
+        error(f"could not parse analyze TOML config file: {type(err)} {err}")
         typer.Exit(code=2)
 
 
