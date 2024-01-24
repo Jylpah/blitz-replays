@@ -259,12 +259,20 @@ class EnrichedReplay(Replay):
         """
 
         data: EnrichedPlayerData
+        if not self.is_complete:
+            raise ValueError(f"replay is incomplete: {self.title}")
+
         # add tanks
         for data in self.players_dict.values():
             tank_id: TankId = data.vehicle_descr
             try:
                 tank: Tank = tankopedia[tank_id]
-                data.tank = tank
+                data.tank = tank.name
+                data.tank_id = tank.tank_id
+                data.tank_type = tank.type.name  # type: ignore
+                data.tank_tier = tank.tier.value
+                data.tank_is_premium = tank.is_premium
+
                 self.battle_tier = max(self.battle_tier, int(tank.tier))
             except KeyError:
                 debug("could not find tank_id=%d from Tankopedia", tank_id)

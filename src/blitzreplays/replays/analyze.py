@@ -442,20 +442,24 @@ async def replay_read_worker(
                     )
                     stats.log("conversion errors")
                     raise ValueError()
+            else:
+                verbose(f"could not read replay: {fn.name}")
+                stats.log("errors")
+                continue
         except Exception as err:
             error(f"could not read replay: {fn}: {type(err)}: {err}")
             stats.log("errors")
             continue
         try:
-            if replay is not None:
+            if replay.is_complete:
                 await replay.enrich(tankopedia=tankopedia, maps=maps, player=player)
                 await stats_cache.queue_stats(
                     replay, accountQ=accountQ, query_cache=query_cache
                 )
                 await replayQ.put(replay)
             else:
-                stats.log("errors")
-                raise ValueError()
+                verbose(f"replay is incomplete: {replay.title}")
+                stats.log("incomplete")
         except Exception as err:
             error(f"could not enrich replay: {fn}: {type(err)}: {err}")
             stats.log("processing errors")
