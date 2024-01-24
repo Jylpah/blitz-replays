@@ -4,6 +4,7 @@ from typing import (
     Self,
     Dict,
     Optional,
+    Literal,
     Iterable,
 )
 from pydantic import Field, model_validator, ConfigDict
@@ -186,18 +187,21 @@ class PlayerStats(JSONExportable):
         return None
 
 
+TankType = Literal["light_tank", "medium_tank", "heavy_tank", "tank_destroyer", "-"]
+
+
 class EnrichedPlayerData(PlayerData):
-    tank: Tank | None = None
+    # tank: Tank | None = None
     # player stats
     wr: float = 0
     avgdmg: float = 0
     battles: int = 0
-    # tier_wr: float = 0
-    # tier_avgdmg: float = 0
-    # tier_battles: int = 0
-    # tank_wr: float = 0
-    # tank_avgdmg: float = 0
-    # tank_battles: int = 0
+
+    tank: str = "-"
+    tank_id: TankId = 0
+    tank_type: TankType = "-"
+    tank_tier: int = 0
+    tank_is_premium: bool = False
 
     model_config = ConfigDict(
         extra="allow",
@@ -285,8 +289,7 @@ class EnrichedReplay(Replay):
             raise ValueError("no account_id=%d in the replay", self.player)
 
         # set top_tier
-        if (player_tank := self.players_dict[self.player].tank) is not None:
-            self.top_tier = player_tank.tier == self.battle_tier
+        self.top_tier = self.players_dict[self.player].tank_tier == self.battle_tier
 
         # set platoon mate
         if self.players_dict[self.player].squad_index is not None:
@@ -373,23 +376,23 @@ class EnrichedReplay(Replay):
                     | EnumGroupFilter.medium_tank
                     | EnumVehicleTypeStr.heavy_tank
                 ):
-                    tank_type = EnumVehicleTypeStr[filter.group.name]
+                    tank_type = EnumVehicleTypeStr[filter.group.name].name
                     for player in players:
                         data = self.players_dict[player]
-                        if data.tank is not None and data.tank.type == tank_type:
+                        if data.tank_type == tank_type:
                             res.append(player)
                     return res
 
                 case EnumGroupFilter.top:
                     for player in players:
                         data = self.players_dict[player]
-                        if data.tank is not None and data.tank.tier == self.battle_tier:
+                        if data.tank_tier == self.battle_tier:
                             res.append(player)
                     return res
                 case EnumGroupFilter.bottom:
                     for player in players:
                         data = self.players_dict[player]
-                        if data.tank is not None and data.tank.tier < self.battle_tier:
+                        if data.tank_tier < self.battle_tier:
                             res.append(player)
                     return res
         except Exception as err:
