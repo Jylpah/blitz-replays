@@ -246,7 +246,9 @@ class EnrichedReplay(Replay):
                     player_data
                 )
             except KeyError as err:
-                verbose(f"account_id={err} not found in replay")
+                debug(
+                    f"account_id={err} not found in replay. Maybe a tournament observer?"
+                )
         self.players_data = list()
         return self
 
