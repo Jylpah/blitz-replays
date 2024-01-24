@@ -282,7 +282,7 @@ async def files(
         typer.Exit(code=3)
         assert False, "trick Mypy..."
 
-    stats = EventCounter("Upload replays")
+    stats = EventCounter("Analyze replays")
     fileQ = FileQueue(filter="*.wotbreplay.json", case_sensitive=False)
     replayQ: IterableQueue[EnrichedReplay] = IterableQueue()
     accountQ: IterableQueue[AccountId] = IterableQueue()
@@ -364,8 +364,8 @@ async def files(
             player=player,
         )
         reports.print(fields=fields)
-
-        debug(stats.print(do_print=False))
+        print()
+        verbose(stats.print(do_print=False))
     except SystemExit:
         debug("canceling workers... ")
         for task in replay_readers + api_workers:
@@ -429,21 +429,20 @@ async def replay_read_worker(
     async for fn in fileQ:
         replay: EnrichedReplay | None = None
         try:
-            if (replay := await EnrichedReplay.open_json(fn)) is not None:
-                stats.log("read")
-            # elif (old_replay := await ReplayJSON.open_json(fn)) is not None:
-            #     stats.log("read (v1)")
-            #     debug(f"converting old replay file format: {fn}")
-            #     if (
-            #         replay := EnrichedReplay.from_obj(old_replay, in_type=ReplayJSON)
-            #     ) is None:
-            #         message(
-            #             f"""ERROR: could not convert replay to the v2 format: {fn.name}
-            #                 please re-fetch the replay JSON file with 'blitz-replays upload --force'"""
-            #         )
-            #         stats.log("conversion errors")
-            #         raise ValueError()
-            else:
+            stats.log("found")
+            if (replay := await EnrichedReplay.open_json(fn)) is None:
+                # elif (old_replay := await ReplayJSON.open_json(fn)) is not None:
+                #     stats.log("read (v1)")
+                #     debug(f"converting old replay file format: {fn}")
+                #     if (
+                #         replay := EnrichedReplay.from_obj(old_replay, in_type=ReplayJSON)
+                #     ) is None:
+                #         message(
+                #             f"""ERROR: could not convert replay to the v2 format: {fn.name}
+                #                 please re-fetch the replay JSON file with 'blitz-replays upload --force'"""
+                #         )
+                #         stats.log("conversion errors")
+                #         raise ValueError()
                 message(f"ERROR: could not read replay: {fn.name}")
                 stats.log("errors")
                 continue
@@ -462,6 +461,7 @@ async def replay_read_worker(
                     replay, accountQ=accountQ, query_cache=query_cache
                 )
                 await replayQ.put(replay)
+                stats.log("OK")
             elif is_err(res):
                 message(f"{replay.title}: {res.err_value}")
                 stats.log("incomplete")
