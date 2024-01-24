@@ -160,7 +160,17 @@ def test_2_blitzreplays_analyze_files(
         (["--fields", "+extra", "files"]),
         (["--player", "521458531", "files"]),
         (["--reports", "extra", "files"]),
-        (["--reports", "+extra", "files", "--wg-rate-limit", "10"]),
+        (
+            [
+                "--reports",
+                "+extra",
+                "--fields",
+                "+extra",
+                "files",
+                "--wg-rate-limit",
+                "10",
+            ]
+        ),
     ],
 )
 @REPLAY_ANALYZE_FILES
