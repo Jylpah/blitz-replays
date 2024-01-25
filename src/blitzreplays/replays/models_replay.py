@@ -264,7 +264,7 @@ class EnrichedReplay(Replay):
         data: EnrichedPlayerData
         if not self.is_complete:
             # message(f"replay is incomplete: {self.title}")
-            return Err(f"replay is incomplete: {self.title}")
+            return Err("replay is incomplete")
 
         # remove tournament observe
         # message()rs

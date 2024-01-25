@@ -123,7 +123,8 @@ def analyze(
                 )
         debug("--stats-type=%s", stats_type_param.value)
         ctx.obj["stats_type"] = stats_type_param.value
-        # TODO: merge / update user config file with defaults
+        # TODO: move TOML file reading into a separate function
+        # TODO: merge / update default config with user config (verbose(default config overwritten))
         if analyze_config_fn is None:
             def_config: Traversable = importlib.resources.files(
                 "blitzreplays.replays"
@@ -463,7 +464,7 @@ async def replay_read_worker(
                 await replayQ.put(replay)
                 stats.log("OK")
             elif is_err(res):
-                message(f"{replay.title}: {res.err_value}")
+                message(f"{res.err_value}: {fn.name}")
                 stats.log("incomplete")
         except Exception as err:
             if logger.getEffectiveLevel() == logging.WARNING:  # normal
