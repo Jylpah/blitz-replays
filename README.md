@@ -1,9 +1,9 @@
 # blitz-replays
 
-Set of command line tools to upload and analyze WoT Blitz replays. 
+Command line tool to upload and analyze WoT Blitz replays. Runs on Windows, Mac and Linux. 
 
 * `blitz-replays`: upload and analyze Blitz replays
-* `blitz-data`: extract game metadata (maps and tankopedia) required by `blitz-replays` 
+* `blitz-data`: extract updated game metadata (maps and tankopedia) for `blitz-replays` 
 
 ## Example
 
