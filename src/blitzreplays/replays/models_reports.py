@@ -251,9 +251,20 @@ class FieldStore:
         """Return a list of ReportFields"""
         return list(self.db.values())
 
+    def update(self, other: "FieldStore") -> None:
+        """
+        update instance with other
+        """
+        self.db.update(other.db)
+        return None
+
     @classmethod
     def ops(cls) -> List[str]:
         return list(cls.registry.keys())
+
+    def __len__(self) -> int:
+        """Return the number of fields"""
+        return len(self.db)
 
 
 @dataclass
@@ -748,6 +759,15 @@ class Reports:
             return self._reports[key]
         except KeyError:
             error(f"no report with key={key} defined")
+        return None
+
+    def __len__(self) -> int:
+        """Return the number of reports"""
+        return len(self._reports)
+
+    def update(self, other: "Reports") -> None:
+        """update reports with 'other'"""
+        self._reports.update(other._reports)
         return None
 
     @classmethod

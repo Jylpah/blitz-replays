@@ -2,97 +2,99 @@
 reports = ["TOTAL", "battle_result", "battle_type"]
 
 [FIELDS]
+default = ["battles", "WR", "avg_dmg", "avg_kills", "spot_rate", "top_tier", "DR", "allies_wr", "enemies_wr"]
+extra = ["survival", "allied_platoon_wr", "enemy_platoon_wr", "allies_avg_dmg", "enemies_avg_dmg"]
 
-[[FIELDS.default]]
+[FIELD.battles]
 name = "Battles"
 metric = "count"
 fields = "exp"
 # filter = "all:all" ## filter not not required for replay fields
 format = "d"
 
-[[FIELDS.default]]
+[FIELD.WR]
 name = "WR"
 metric = "average_if"
 fields = "battle_result=1"
 format = ".1%"
 
-[[FIELDS.default]]
+[FIELD.avg_dmg]
 name = "DPB"
 filter = "player:default"
 metric = "average"
 fields = "player.damage_made"
 format = ".0f"
 
-[[FIELDS.default]]
+[FIELD.avg_kills]
 name = "KPB"
 filter = "player:default"
 metric = "average"
 fields = "player.enemies_destroyed"
 format = ".2f"
 
-[[FIELDS.default]]
+[FIELD.spot_rate]
 name = "Spot"
 filter = "player:default"
 metric = "average"
 fields = "player.enemies_spotted"
 format = ".2f"
 
-[[FIELDS.default]]
+[FIELD.top_tier]
 name = "Top tier"
 metric = "average_if"
 fields = "top_tier=1"
 format = ".0%"
 
-[[FIELDS.default]]
+[FIELD.DR]
 name = "DR"
 filter = "player:default"
 metric = "ratio"
 fields = "player.damage_made,player.damage_received"
 format = ".2f"
 
-[[FIELDS.default]]
+[FIELD.survival]
 name = "Surv%"
 filter = "player:default"
 metric = "average_if"
 fields = "player.death_reason=-1"
 format = ".0%"
 
-[[FIELDS.default]]
+[FIELD.allies_wr]
 name = "Allies WR"
 filter = "allies:default"
 metric = "average"
 fields = "player.wr"
 format = ".1%"
 
-[[FIELDS.default]]
+[FIELD.enemies_wr]
 name = "Enemies WR"
 filter = "enemies:default"
 metric = "average"
 fields = "player.wr"
 format = ".1%"
 
-[[FIELDS.extra]]
+[FIELD.allied_platoon_wr]
 name = "A Plat WR"
 filter = "allies:platoon"
 metric = "average"
 fields = "player.wr"
 format = ".1%"
 
-[[FIELDS.extra]]
+[FIELD.enemy_platoon_wr]
 name = "E Plat WR"
 filter = "enemies:platoon"
 metric = "average"
 fields = "player.wr"
 format = ".1%"
 
-[[FIELDS.extra]]
+[FIELD.allies_avg_dmg]
 name = "Allies DPB"
 filter = "allies:default"
 metric = "average"
 fields = "player.avgdmg"
 format = ".0f"
 
-[[FIELDS.extra]]
+[FIELD.enemies_avg_dmg]
 name = "Enemies DPB"
 filter = "enemies:default"
 metric = "average"

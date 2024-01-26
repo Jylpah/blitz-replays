@@ -1,12 +1,12 @@
 import typer
 from typer import Context, Option, Argument
-from typing import Annotated, Optional, List, Dict, Final
+from typing import Annotated, Optional, List, Dict, Final, Tuple, Literal
 from asyncio import create_task, Task, sleep
 import logging
 from pathlib import Path
 from configparser import ConfigParser
 from alive_progress import alive_bar  # type: ignore
-from result import is_ok, is_err
+from result import is_ok, is_err, Result, Err, Ok
 
 from importlib.resources.abc import Traversable
 from importlib.resources import as_file
@@ -63,6 +63,9 @@ WG_REGION: Region = Region.eu
 WG_WORKERS: int = 5
 REPLAY_READERS: int = 3
 
+REPORTS_DEFAULT: str = "default"
+FIELDS_DEFAULT: str = "default"
+
 
 def callback_paths(value: Optional[list[Path]]) -> list[Path]:
     return value if value is not None else []
@@ -84,11 +87,13 @@ def analyze(
         Option("--stats-type", help="stats to use for player stats"),
     ] = None,
     fields_param: Annotated[
-        str, Option("--fields", help="set report fields, combine field modes with '+'")
-    ] = "default",
+        Optional[str],
+        Option("--fields", help="set report fields, combine field modes with '+'"),
+    ] = None,
     reports_param: Annotated[
-        str, Option("--reports", help="reports to create. use '+' to add extra reports")
-    ] = "default",
+        Optional[str],
+        Option("--reports", help="reports to create. use '+' to add extra reports"),
+    ] = None,
     player: Annotated[
         Optional[int],
         Option(
@@ -101,8 +106,7 @@ def analyze(
     """
     analyze replays
     """
-    analyze_config: TOMLDocument | None = None
-    field_store = FieldStore()
+    fields = FieldStore()
     reports = Reports()
     try:
         config: ConfigParser = ctx.obj["config"]
@@ -123,99 +127,65 @@ def analyze(
                 )
         debug("--stats-type=%s", stats_type_param.value)
         ctx.obj["stats_type"] = stats_type_param.value
-        # TODO: move TOML file reading into a separate function
-        # TODO: merge / update default config with user config (verbose(default config overwritten))
-        if analyze_config_fn is None:
-            def_config: Traversable = importlib.resources.files(
-                "blitzreplays.replays"
-            ).joinpath("config.toml")  # REFACTOR in Python 3.12
-            with as_file(def_config) as default_config:
-                analyze_config_fn = set_config(
-                    config,
-                    str(default_config.resolve()),
-                    "REPLAYS",
-                    "analyze_config",
-                    None,
-                )
-        analyze_config_file = TOMLFile(analyze_config_fn)
-        analyze_config = analyze_config_file.read()
     except KeyError as err:
-        error(f"could not read all the arguments: {type(err)}: {err}")
+        error("%s: %s", type(err), err)
         typer.Exit(code=1)
-        # assert False, "trick Mypy..."
+        raise SystemExit
+
     try:
-        if analyze_config is None:
-            raise ValueError("could not read analyze TOML config file")
-        debug("analyze-config: -------------------------------------------------")
-        for key, value in analyze_config.items():
-            debug(f"{key} = {value}")
-        debug("analyze-config EOF-----------------------------------------------")
+        # TODO: default_report .ini config param ?
+        fields_param = set_config(
+            config, FIELDS_DEFAULT, "REPLAYS_ANALYZE", "fields", fields_param
+        )
+        reports_param = set_config(
+            config, REPORTS_DEFAULT, "REPLAYS_ANALYZE", "reports", reports_param
+        )
 
-        # Create fields
-        config_item: TOMLItem | None = None
-        if (config_item := analyze_config.item("FIELDS")) is None:
-            raise ValueError(
-                f"'FIELDS' is not defined in analyze_config file: {analyze_config_fn}"
-            )
-        if not (isinstance(config_item, TOMLTable)):
-            raise ValueError(f"FIELDS is not TOML Table: {type(config_item)}")
+        def_config: Traversable = importlib.resources.files(
+            "blitzreplays.replays"
+        ).joinpath("config.toml")  # REFACTOR in Python 3.12
+        with as_file(def_config) as config_fn:
+            if isinstance(
+                res_reports := read_analyze_config(
+                    config_fn, fields=fields_param, reports=reports_param
+                ),
+                Ok,
+            ):
+                reports, fields = res_reports.ok_value
+            else:
+                error(res_reports.err_value)
+                typer.Exit(code=1)
+                raise SystemExit
+    except Exception as err:
+        error(f"could not read default analyze: {type(err)}: {err}")
+        typer.Exit(code=1)
+        raise SystemExit
 
-        fld: Dict[str, str]
-        if fields_param.startswith("+"):
-            fields_param = f"default,{fields_param[1:]}"
-        for field_mode in fields_param.split(","):
-            try:
-                for fld in config_item[field_mode].unwrap():
-                    debug(
-                        ", ".join(
-                            ["=".join([key, value]) for key, value in fld.items()]
-                        )
-                    )  # type: ignore
-                    field = field_store.create(**fld)
-                    debug("field key=%s", field.key)
-            except KeyError:
-                error(f"undefined --fields mode: {field_mode}")
-                message(
-                    f"valid report --fields modes: { ', '.join(mode for mode in config_item.keys())}"
-                )
-        ctx.obj["fields"] = field_store
+    try:
+        NO_ANALYZE_CONFIG = Literal["__NO_ANALYZE_CONFIG__"]
+        analyze_config_fn = set_config(
+            config,
+            "__NO_ANALYZE_CONFIG__",
+            "REPLAYS",
+            "analyze_config",
+            analyze_config_fn,
+        )
+        if analyze_config_fn != NO_ANALYZE_CONFIG:
+            if isinstance(
+                res_reports := read_analyze_config(
+                    Path(analyze_config_fn), fields=fields_param, reports=reports_param
+                ),
+                Ok,
+            ):
+                user_reports, user_fields = res_reports.ok_value
+                reports.update(user_reports)
+                fields.update(user_fields)
 
-        # create reports
-        if (config_item := analyze_config.item("REPORTS")) is None:
-            raise ValueError(
-                f"'REPORTS' is not defined in analyze_config file: {analyze_config_fn}"
-            )
-        if not (isinstance(config_item, TOMLTable)):
-            raise ValueError(f"REPORTS is not TOML Table: {type(config_item)}")
+            else:
+                debug(res_reports.err_value)
 
-        debug("Reports -------------------------------------------------------")
-        report_item: TOMLItem | None = None
-        if (report_item := analyze_config.item("REPORT")) is None:
-            raise ValueError(
-                f"'REPORT' is not defined in analyze_config file: {analyze_config_fn}"
-            )
-        if not (isinstance(report_item, TOMLTable)):
-            raise ValueError(f"REPORT is not TOML Table: {type(report_item)}")
-
-        report_key: str
-        for report_list in reports_param.split("+"):
-            debug("report list=%s", report_list)
-            try:
-                if (reports_table := config_item.get(report_list)) is None:
-                    error("report list not defined: 'REPORTS.%s'", report_list)
-                    raise KeyError()
-                for report_key in reports_table.unwrap():
-                    debug("report key=%s", report_key)
-                    if (rpt_config := report_item.get(report_key)) is None:
-                        error("report 'REPORT.%s' is not defined", report_key)
-                        raise KeyError
-                    rpt = rpt_config.unwrap()
-                    debug("adding report: %s", str(rpt))
-                    reports.add(key=report_key, **rpt)
-            except KeyError:
-                error(f"failed to define report list: {report_list}")
         ctx.obj["reports"] = reports
-        debug("Reports EOF -----------------------------------------------------")
+        ctx.obj["fields"] = fields
 
     except Exception as err:
         error(f"could not parse analyze TOML config file: {type(err)} {err}")
@@ -376,6 +346,127 @@ async def files(
         error(f"{type(err)}: {err}")
     finally:
         await wg_api.close()
+
+
+def read_analyze_config(
+    filename: Path, fields: str, reports: str
+) -> Result[Tuple[Reports, FieldStore], str]:
+    """
+    Read analyze config TOML file
+    """
+    # TODO: move TOML file reading into a separate function
+    # TODO: merge / update default config with user config (verbose(default config overwritten))
+    # TODO: default_report .ini config param ?
+
+    try:
+        if filename is None:
+            return Err("no TOML config file given")
+        config_file = TOMLFile(filename)
+        config: TOMLDocument | None = None
+
+        if (config := config_file.read()) is None:
+            return Err(f"could not read analyze TOML config file: {filename}")
+
+        if isinstance(res_fields := read_analyze_fields(config, fields), Err):
+            return Err(f"could not read FIELDS from analyze config file {filename}")
+
+        if isinstance(res_reports := read_analyze_reports(config, reports), Err):
+            return Err(f"could not read REPORTS from analyze config file {filename}")
+
+        return Ok((res_reports.ok_value, res_fields.ok_value))
+    except Exception as err:
+        return Err(str(err))
+
+
+def read_analyze_reports(config: TOMLDocument, reports: str) -> Result[Reports, str]:
+    """
+    read REPORT config from analyze TOML config
+    """
+
+    config_item: TOMLItem | None = None
+    if (config_item := config.item("REPORTS")) is None:
+        return Err("'REPORTS' is not defined in analyze_config file")
+    if not (isinstance(config_item, TOMLTable)):
+        return Err(f"REPORTS is not a TOML Table: {type(config_item)}")
+
+    report_store = Reports()
+    debug("Reports -------------------------------------------------------")
+    report_item: TOMLItem | None = None
+    if (report_item := config.item("REPORT")) is None:
+        return Err("'REPORT' is not defined in analyze_config file")
+    if not (isinstance(report_item, TOMLTable)):
+        return Err(f"REPORT is not TOML Table: {type(report_item)}")
+
+    # '+' appends to default reports
+    if reports.startswith("+"):
+        reports = f"default,{reports[1:]}"
+    report_key: str
+    for report_list in reports.split(","):
+        debug("report list=%s", report_list)
+        try:
+            if (reports_table := config_item.get(report_list)) is None:
+                error("report list not defined: 'REPORTS.%s'", report_list)
+                raise KeyError()
+            for report_key in reports_table.unwrap():
+                debug("report key=%s", report_key)
+                if (rpt_config := report_item.get(report_key)) is None:
+                    error("report 'REPORT.%s' is not defined", report_key)
+                    raise KeyError
+                rpt = rpt_config.unwrap()
+                debug("adding report: %s", str(rpt))
+                report_store.add(key=report_key, **rpt)
+        except KeyError:
+            error(f"failed to define report list: {report_list}")
+    if len(report_store) == 0:
+        debug(f"no reports defined: {reports}")
+    return Ok(report_store)
+
+
+def read_analyze_fields(config: TOMLDocument, fields: str) -> Result[FieldStore, str]:
+    """
+    Read FIELD config from analyze TOML config
+    """
+
+    config_item: TOMLItem | None = None
+    if (config_item := config.item("FIELDS")) is None:
+        return Err("'FIELDS' is not defined in analyze_config file")
+    if not (isinstance(config_item, TOMLTable)):
+        return Err(f"FIELDS is not TOML Table: {type(config_item)}")
+
+    if (fields_item := config.item("FIELD")) is None:
+        return Err("'FIELD' is not defined in analyze_config file")
+    if not (isinstance(fields_item, TOMLTable)):
+        return Err(f"FIELD is not TOML Table: {type(fields_item)}")
+
+    field_store = FieldStore()
+    fld: Dict[str, str]
+
+    # append field set to the
+    if fields.startswith("+"):
+        fields = f"default,{fields[1:]}"
+    field_key: str
+    for field_list in fields.split(","):
+        debug("FIELDS.%s", field_list)
+        try:
+            if (fields_table := config_item.get(field_list)) is None:
+                error("field list not defined: 'FIELDS.%s'", field_list)
+                raise KeyError()
+            for field_key in fields_table.unwrap():
+                debug("field key=%s", field_key)
+                # for fld in config_item[field_mode].unwrap():
+                if (fld_config := fields_item.get(field_key)) is None:
+                    error("field 'FIELD.%s' is not defined", field_key)
+                    raise KeyError
+                fld = fld_config.unwrap()
+                debug("adding FIELD: %s", str(fld))
+                field_store.create(**fld)
+
+        except KeyError:
+            error(f"undefined --fields mode: {field_list}")
+            message(
+                f"valid report --fields modes: { ', '.join(mode for mode in config_item.keys())}"
+            )
+    return Ok(field_store)
 
 
 async def analyze_replays(
