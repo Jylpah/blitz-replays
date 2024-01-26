@@ -405,20 +405,18 @@ def read_analyze_reports(config: TOMLDocument, reports: str) -> Result[Reports, 
         debug("report list=%s", report_list)
         try:
             if (reports_table := config_item.get(report_list)) is None:
-                error("report list not defined: 'REPORTS.%s'", report_list)
+                debug("report list not defined: 'REPORTS.%s'", report_list)
                 raise KeyError()
             for report_key in reports_table.unwrap():
                 debug("report key=%s", report_key)
                 if (rpt_config := report_item.get(report_key)) is None:
-                    error("report 'REPORT.%s' is not defined", report_key)
+                    debug("report 'REPORT.%s' is not defined", report_key)
                     raise KeyError
                 rpt = rpt_config.unwrap()
                 debug("adding report: %s", str(rpt))
                 report_store.add(key=report_key, **rpt)
         except KeyError:
-            error(f"failed to define report list: {report_list}")
-    if len(report_store) == 0:
-        debug(f"no reports defined: {reports}")
+            debug(f"failed to define report list: {report_list}")
     return Ok(report_store)
 
 
@@ -449,23 +447,19 @@ def read_analyze_fields(config: TOMLDocument, fields: str) -> Result[FieldStore,
         debug("FIELDS.%s", field_list)
         try:
             if (fields_table := config_item.get(field_list)) is None:
-                error("field list not defined: 'FIELDS.%s'", field_list)
+                debug("field list not defined: 'FIELDS.%s'", field_list)
                 raise KeyError()
             for field_key in fields_table.unwrap():
                 debug("field key=%s", field_key)
                 # for fld in config_item[field_mode].unwrap():
                 if (fld_config := fields_item.get(field_key)) is None:
-                    error("field 'FIELD.%s' is not defined", field_key)
+                    debug("field 'FIELD.%s' is not defined", field_key)
                     raise KeyError
                 fld = fld_config.unwrap()
                 debug("adding FIELD: %s", str(fld))
                 field_store.create(**fld)
-
         except KeyError:
-            error(f"undefined --fields mode: {field_list}")
-            message(
-                f"valid report --fields modes: { ', '.join(mode for mode in config_item.keys())}"
-            )
+            debug(f"failed to define field list: {field_list}")
     return Ok(field_store)
 
 
