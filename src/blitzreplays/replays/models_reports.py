@@ -19,6 +19,8 @@ from collections import defaultdict
 from sortedcollections import NearestDict  # type: ignore
 from tabulate import tabulate  # type: ignore
 
+import tomlkit
+
 
 from .args import (
     # EnumGroupFilter,
@@ -67,6 +69,7 @@ class ReportField:
 
     metric: ClassVar[str]
 
+    key: FieldKey
     name: str
     fields: str  # key, player.key or key,player.key
     format: str
@@ -140,12 +143,12 @@ class ReportField:
     def calc(self, replay: EnrichedReplay) -> ValueStore:
         raise NotImplementedError
 
-    @property
-    def key(self) -> FieldKey:
-        if self.filter is None:
-            return "-".join([self.metric, self.fields])
-        else:
-            return "-".join([self.metric, self.fields, self.filter.key])
+    # @property
+    # def key(self) -> FieldKey:
+    #     if self.filter is None:
+    #         return "-".join([self.metric, self.fields])
+    #     else:
+    #         return "-".join([self.metric, self.fields, self.filter.key])
 
     def is_player_field(self, field: str) -> bool:
         """Test if the field is player field (True) or replay field (False)"""
@@ -166,6 +169,18 @@ class ReportField:
             raise ValueError(
                 f"Invalid field config: a player filter is defined, but 'fields' is not form of 'player.field_name': {field}"
             )
+
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        Return TOML config of the object
+        """
+        table = tomlkit.table()
+        table.add("name", self.name)
+        table.add("fields", self.fields)
+        table.add("format", self.format)
+        if self.filter is not None:
+            table.add("filter", self.filter.key)
+        return table
 
     # @abstractmethod
     # def record(self, value: ValueType):
@@ -194,14 +209,16 @@ class FieldStore:
     """
 
     registry: ClassVar[Dict[str, Type[ReportField]]] = dict()
+    field_sets: Dict[str, List[str]] = data_field(default_factory=dict)
     db: Dict[FieldKey, ReportField] = data_field(default_factory=dict)
 
     @classmethod
     def register(cls, measure: Type[ReportField]):
         cls.registry[measure.metric] = measure
 
-    def create(
+    def add(
         self,
+        key: FieldKey,
         name: str,
         metric: str,
         fields: str,
@@ -226,12 +243,12 @@ class FieldStore:
                 raise ValueError(f"unsupported metric: {metric}")
 
             field = field_type(
-                name=name, filter=player_filter, fields=fields, format=format
+                key=key, name=name, filter=player_filter, fields=fields, format=format
             )
 
-            if field.key not in self.db:
-                self.db[field.key] = field
-            return self.db[field.key]
+            if key not in self.db:
+                self.db[key] = field
+            return self.db[key]
         except Exception as err:
             error(
                 f"could not create metric: metric={metric}, filter={filter}, fields={fields}"
@@ -265,6 +282,42 @@ class FieldStore:
     def __len__(self) -> int:
         """Return the number of fields"""
         return len(self.db)
+
+    def get_toml_fields(self) -> tomlkit.items.Table:
+        """
+        get field TOML config
+        """
+        table: tomlkit.items.Table = tomlkit.table()
+        for key, field in self.items():
+            table.add(key, field.get_toml())
+            table.add(tomlkit.nl())
+        return table
+
+    def get_toml_field_sets(self) -> tomlkit.items.Table:
+        """
+        get field TOML config
+        """
+        table: tomlkit.items.Table = tomlkit.table()
+        for name, field_set in self.field_sets.items():
+            table.add(name, field_set)
+        return table
+
+    def with_config(self, field_sets: List[str]) -> "FieldStore":
+        """
+        get FieldStore according to the 'field_set' config
+        """
+        res = FieldStore()
+        for key in field_sets:
+            try:
+                res.field_sets[key] = self.field_sets[key]
+                for field_key in res.field_sets[key]:
+                    try:
+                        res.db[field_key] = self.db[field_key]
+                    except KeyError:
+                        error(f"no such a field keyy defined: {field_key}")
+            except KeyError:
+                error(f"no such a field set defined: {key}")
+        return res
 
 
 @dataclass
@@ -637,6 +690,7 @@ class Categorization(ABC):
     def __init__(self, name: str, field: str):
         self.name: str = name
         # self._battles: int = 0
+        self.field: str = field
         is_player_field: bool
         field, is_player_field = self.parse_field(field)
         self._field: str = field
@@ -687,6 +741,16 @@ class Categorization(ABC):
         else:
             return field, False
 
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        get TOML config of the report
+        """
+        table: tomlkit.items.Table = tomlkit.table()
+        table.add("name", self.name)
+        table.add("categorization", self.categorization)
+        table.add("field", self.field)
+        return table
+
     @property
     def category_field(self) -> str:
         """return full category field"""
@@ -725,7 +789,8 @@ class Reports:
     _db: ClassVar[Dict[str, Type[Categorization]]] = dict()
 
     def __init__(self) -> None:
-        self._reports: Dict[str, Categorization] = dict()
+        self.db: Dict[str, Categorization] = dict()
+        self.report_sets: Dict[str, List[str]] = dict()
 
     def add(self, key: str, name: str, categorization: str, **kwargs):
         """
@@ -733,9 +798,9 @@ class Reports:
         """
         try:
             cat: Type[Categorization] = self._db[categorization]
-            if key in self._reports:
+            if key in self.db:
                 raise ValueError(f"duplicate definition of report='{key}'")
-            self._reports[key] = cat(name=name, **kwargs)
+            self.db[key] = cat(name=name, **kwargs)
         except KeyError as err:
             error(
                 f"could not create report: key={key}, name={name}, categorization={categorization}, {', '.join('='.join([k,v]) for k,v in kwargs.items())}"
@@ -749,25 +814,45 @@ class Reports:
             error(err)
             raise
 
+    def add_report_set(self, key: str, report_set: List[str]):
+        self.report_sets[key] = report_set
+
+    def with_config(self, report_sets: List[str]) -> "Reports":
+        """
+        get FieldStore according to the 'report_set' config
+        """
+        res = Reports()
+        for key in report_sets:
+            try:
+                res.report_sets[key] = self.report_sets[key]
+                for report_key in res.report_sets[key]:
+                    try:
+                        res.db[report_key] = self.db[report_key]
+                    except KeyError:
+                        error(f"no such a report key defined: {report_key}")
+            except KeyError:
+                error(f"no such a report set defined: {key}")
+        return res
+
     @property
     def reports(self) -> List[Categorization]:
-        return list(self._reports.values())
+        return list(self.db.values())
 
     def get(self, key: str) -> Categorization | None:
         """Get a report by key"""
         try:
-            return self._reports[key]
+            return self.db[key]
         except KeyError:
             error(f"no report with key={key} defined")
         return None
 
     def __len__(self) -> int:
         """Return the number of reports"""
-        return len(self._reports)
+        return len(self.db)
 
     def update(self, other: "Reports") -> None:
         """update reports with 'other'"""
-        self._reports.update(other._reports)
+        self.db.update(other.db)
         return None
 
     @classmethod
@@ -777,7 +862,7 @@ class Reports:
 
     def print(self, fields: FieldStore) -> None:
         """Print reports"""
-        for report in self._reports.values():
+        for report in self.db.values():
             print()
             print(report.name.upper())
             report.print(fields)
@@ -796,6 +881,14 @@ class Totals(Categorization):
 
     def get_category(self, replay: EnrichedReplay) -> Category | None:
         return self._categories["Total"]
+
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        get TOML config of the report
+        """
+        table: tomlkit.items.Table = super().get_toml()
+        del table["field"]
+        return table
 
     @classmethod
     def help(cls) -> None:
@@ -837,6 +930,14 @@ class ClassCategorization(Categorization):
             for cat in self._category_cache.values().__reversed__()
             if cat in self._categories
         ]
+
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        get TOML config of the report
+        """
+        table: tomlkit.items.Table = super().get_toml()
+        table.add("categories", list(self._category_cache.values()))
+        return table
 
 
 Reports.register(ClassCategorization)
@@ -973,6 +1074,15 @@ class BucketCategorization(Categorization):
             for cat in self._buckets.values().__reversed__()
             if cat in self._categories
         ]
+
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        get TOML config of the report
+        """
+        table: tomlkit.items.Table = super().get_toml()
+        table.add("buckets", list(self._buckets.keys()))
+        table.add("bucket_labels", list(self._buckets.values()))
+        return table
 
 
 Reports.register(BucketCategorization)
