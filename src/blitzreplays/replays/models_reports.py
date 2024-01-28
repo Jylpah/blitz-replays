@@ -1057,11 +1057,15 @@ class BucketCategorization(Categorization):
         field: str,
         buckets: List[int | float],
         bucket_labels: List[str],
+        filter: str | None = None,
     ):
         super().__init__(name=name, field=field)
         self._buckets: NearestDict[float, str] = NearestDict(
             rounding=NearestDict.NEAREST_PREV
         )
+        self._filter: PlayerFilter | None = None
+        if filter is not None:
+            self._filter = PlayerFilter.from_str(filter)
 
         if len(buckets) != len(bucket_labels):
             message(
@@ -1075,7 +1079,14 @@ class BucketCategorization(Categorization):
 
     def get_category(self, replay: EnrichedReplay) -> Category | None:
         try:
-            field_value: float = self.get_category_float(replay)
+            field_value: float
+            if self._filter is None:
+                field_value = self.get_category_float(replay)
+            else:
+                field_value = self.get_category_float(
+                    replay, replay.get_players(self._filter)
+                )
+
             category: CategoryKey = self._buckets[field_value]
             debug(
                 f"replay={replay.title}: field={self.category_field}, value={field_value}, category={category}"
