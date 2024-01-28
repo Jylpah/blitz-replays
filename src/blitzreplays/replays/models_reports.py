@@ -568,7 +568,7 @@ class RatioField(SumField):
     def __post_init__(self):
         debug(f"called: {type(self)}")
         try:
-            self._value_field, self._div_field = self.fields.split(",")
+            self._value_field, self._div_field = self.fields.split("/")
             if self.is_player_field(self._value_field):
                 self._value_field = self.check_field_config(self._value_field)
                 self._is_player_field_value = True
@@ -577,7 +577,7 @@ class RatioField(SumField):
                 self._is_player_field_div = True
         except Exception as err:
             error(f"invalid field config: {self.fields}")
-            error("'ratio' metric's field key is format 'value_field,divider_field'")
+            error("'ratio' metric's field key is format 'value_field/divider_field'")
             error(err)
             raise
 
