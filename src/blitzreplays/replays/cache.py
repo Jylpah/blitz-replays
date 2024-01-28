@@ -14,6 +14,8 @@ from asyncio import Lock
 from pyutils import IterableQueue, EventCounter
 from pydantic_exportables import JSONExportable, JSONExportableRootDict, Idx
 
+# from icecream import ic  # type: ignore
+
 from blitzmodels import (
     AccountInfo,
     AccountInfoStats,
@@ -721,7 +723,9 @@ class StatsCache:
                     tier=battle_tier,
                     tank_id=tank_id,
                 )
+
             player_data.add_stats(stats)
+            # ic("add_stats", account_id, replay.players_dict[account_id].wr)
 
 
 # @dataclass

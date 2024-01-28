@@ -13,8 +13,11 @@ from importlib.resources import as_file
 import importlib
 
 from tomlkit.toml_file import TOMLFile
-from tomlkit.items import Item as TOMLItem, Table as TOMLTable
+
+# from tomlkit.items import Item as TOMLItem, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
+
+# from icecream import ic  # type: ignore
 
 from pyutils import FileQueue, EventCounter, AsyncTyper, IterableQueue
 from pyutils.utils import set_config
@@ -179,6 +182,7 @@ def analyze(
             analyze_config_fn,
         )
         if analyze_config_fn != NO_ANALYZE_CONFIG:
+            ctx.obj["analyze_config_fn"] = analyze_config_fn
             if isinstance(
                 res_reports := read_analyze_config(Path(analyze_config_fn)),
                 Ok,
@@ -407,6 +411,9 @@ async def analyze_replays(
         try:
             debug("analyzing replay: %s", replay.title)
             stats_cache.add_stats(replay)
+
+            # for player in replay.get_players():
+            #     ic("check player data", player, replay.players_dict[player].wr)
 
             categories: List[Category] = list()
             for report in reports.reports:
