@@ -234,6 +234,7 @@ class EnrichedReplay(Replay):
     map: str = "-"
     top_tier: bool = False
     solo: bool = True
+    title_uniq: str = "-"
 
     model_config = ConfigDict(
         extra="allow",
@@ -243,6 +244,7 @@ class EnrichedReplay(Replay):
 
     @model_validator(mode="after")
     def read_players_dict(self) -> Self:
+        self.title_uniq = f"{self.title} {self.battle_start_time.strftime('%x %X')}"
         for player_data in self.players_data:
             try:
                 self.players_dict[player_data.dbid] = EnrichedPlayerData.model_validate(
