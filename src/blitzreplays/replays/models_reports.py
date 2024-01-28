@@ -290,7 +290,7 @@ class FieldStore:
         """Return the number of fields"""
         return len(self.db)
 
-    def get_toml_fields(self) -> tomlkit.items.Table:
+    def get_toml(self) -> tomlkit.items.Table:
         """
         get field TOML config
         """
@@ -890,6 +890,25 @@ class Reports:
             print()
             print(report.name.upper())
             report.print(fields)
+
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        get REPORT TOML config
+        """
+        table: tomlkit.items.Table = tomlkit.table()
+        for key, report in self.db.items():
+            table.add(key, report.get_toml())
+            table.add(tomlkit.nl())
+        return table
+
+    def get_toml_report_sets(self) -> tomlkit.items.Table:
+        """
+        get REPORTS TOML config
+        """
+        table: tomlkit.items.Table = tomlkit.table()
+        for name, report_set in self.report_sets.items():
+            table.add(name, report_set)
+        return table
 
 
 class Totals(Categorization):
