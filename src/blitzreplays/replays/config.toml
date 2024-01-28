@@ -10,7 +10,7 @@ name = "Battles"
 metric = "count"
 fields = "exp"
 # filter = "all:all" ## filter not not required for replay fields
-format = "d"
+format = ".0f"
 
 [FIELD.WR]
 name = "WR"
@@ -49,7 +49,7 @@ format = ".0%"
 name = "DR"
 filter = "player:default"
 metric = "ratio"
-fields = "player.damage_made,player.damage_received"
+fields = "player.damage_made/player.damage_received"
 format = ".2f"
 
 [FIELD.survival]
@@ -104,7 +104,7 @@ format = ".0f"
 
 [REPORTS]
 default = ["total", "battle_result", "tank_tier", "mastery_badge", "avg_dmg"]
-extra = ["is_premium", "battle_tier", "map"]
+extra = ["is_premium", "battle_tier", "map", "enemy_wr"]
 
 
 [REPORT.total]
@@ -160,3 +160,11 @@ bucket_labels = [
     "4000 - 5000",
     "5000+",
 ]
+
+[REPORT.enemy_wr]
+name = "Enemy WR"
+categorization = "bucket"
+field = "player.wr"
+filter = "enemies:all"
+buckets = [0, 0.45, 0.475, 0.5, 0.525, 0.55, 1]
+bucket_labels = [" < 45%", "45 - 47.5%", "47.5 - 50%", "50 - 52.5%", "52.5 - 55%", "> 55%", "no stats"]
