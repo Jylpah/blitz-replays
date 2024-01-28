@@ -104,7 +104,7 @@ format = ".0f"
 
 [REPORTS]
 default = ["total", "battle_result", "tank_tier", "tank_nation", "mastery_badge", "avg_dmg"]
-extra = ["is_premium", "battle_tier", "battle_mode", "battle_duration", "map", "enemy_wr", "replay"]
+extra = ["is_premium", "battle_tier", "battle_mode", "solo", "battle_duration", "map", "enemy_wr", "replay"]
 
 
 [REPORT.total]
@@ -150,6 +150,13 @@ name = "Battle mode"
 categorization = "category"
 field = "battle_type"
 categories = ["Encounter", "Supremacy"]
+
+[REPORT.solo]
+name = "Platoon"
+categorization = "category"
+field = "solo"
+categories = ["Platoon", "Solo"]
+
 
 [REPORT.map]
 name = "Map"
