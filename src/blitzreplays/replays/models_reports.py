@@ -187,7 +187,7 @@ class ReportField:
     #     raise NotImplementedError
 
     @abstractmethod
-    def value(self, value: ValueStore) -> int | float:
+    def value(self, value: ValueStore) -> float:
         """Return value"""
         raise NotImplementedError
 
@@ -331,11 +331,9 @@ class CountField(ReportField):
         else:
             return ValueStore(len(replay.get_players(self.filter)), 1)
 
-    def value(self, value: ValueStore) -> int:
+    def value(self, value: ValueStore) -> float:
         v: int | float = value.value
-        if isinstance(v, int):
-            return v
-        raise TypeError("value is not int")
+        return float(v)
 
 
 FieldStore.register(CountField)
@@ -373,8 +371,8 @@ class SumField(ReportField):
                     )
             return ValueStore(res, n)
 
-    def value(self, value: ValueStore) -> int | float:
-        return value.value
+    def value(self, value: ValueStore) -> float:
+        return float(value.value)
 
 
 FieldStore.register(SumField)
@@ -520,8 +518,8 @@ class MinField(ReportField):
                 n += 1
             return ValueStore(res, n)
 
-    def value(self, value: ValueStore) -> float | int:
-        return value.value
+    def value(self, value: ValueStore) -> float:
+        return float(value.value)
 
 
 FieldStore.register(MinField)
@@ -549,8 +547,8 @@ class MaxField(ReportField):
                 n += 1
             return ValueStore(res, n)
 
-    def value(self, value: ValueStore) -> float | int:
-        return value.value
+    def value(self, value: ValueStore) -> float:
+        return float(value.value)
 
 
 FieldStore.register(MaxField)
