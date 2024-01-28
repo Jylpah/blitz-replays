@@ -65,3 +65,32 @@ class EnumStatsTypes(StrEnum):
 
 StatsType = Literal["player", "tier", "tank"]
 StatsMeasure = Literal["wr", "avgdmg", "battles"]
+
+
+def ask_config_file() -> Path:
+    """
+    Ask for users analyze config file
+    """
+    while True:
+        config_file: Path = (
+            Path.home() / ".config" / "blitz-replays" / "analyze_config.toml"
+        )
+        typer.echo()
+        typer.echo(
+            f"""Please enter path to a new analyze config file:\n
+                   default={config_file.resolve()}"""
+        )
+        typer.echo()
+        try:
+            config_filename: str = sys.stdin.read().rstrip()
+            if config_file != "":
+                if not config_filename.endswith(".toml"):
+                    config_filename = config_filename + ".toml"
+                config_file = Path(config_filename)
+
+            makedirs(str(config_file.parent.resolve()), mode=0o750, exist_ok=True)
+            return config_file
+        except Exception as err:
+            error("%s: %s", type(err), err)
+
+
