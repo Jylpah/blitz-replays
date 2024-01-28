@@ -202,6 +202,7 @@ class EnrichedPlayerData(PlayerData):
     tank_type: TankType = "-"
     tank_tier: int = 0
     tank_is_premium: bool = False
+    tank_nation: str = "-"
 
     model_config = ConfigDict(
         extra="allow",
@@ -232,6 +233,7 @@ class EnrichedReplay(Replay):
     battle_tier: int = 0
     map: str = "-"
     top_tier: bool = False
+    solo: bool = True
 
     model_config = ConfigDict(
         extra="allow",
@@ -286,9 +288,10 @@ class EnrichedReplay(Replay):
                 tank: Tank = tankopedia[tank_id]
                 data.tank = tank.name
                 data.tank_id = tank.tank_id
-                data.tank_type = tank.type.name  # type: ignore
+                data.tank_type = str(tank.type)  # type: ignore
                 data.tank_tier = tank.tier.value
                 data.tank_is_premium = tank.is_premium
+                data.tank_nation = str(tank.nation)
 
                 self.battle_tier = max(self.battle_tier, int(tank.tier))
             except KeyError:
@@ -320,6 +323,7 @@ class EnrichedReplay(Replay):
 
         # set platoon mate
         if self.players_dict[self.player].squad_index is not None:
+            self.solo = False
             plat_id: int = self.players_dict[self.player].squad_index
             for player in self.allies:
                 if player == self.player:
