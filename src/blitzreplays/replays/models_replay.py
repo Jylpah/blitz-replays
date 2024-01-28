@@ -233,6 +233,7 @@ class EnrichedReplay(Replay):
     battle_tier: int = 0
     map: str = "-"
     top_tier: bool = False
+    solo: bool = True
 
     model_config = ConfigDict(
         extra="allow",
@@ -322,6 +323,7 @@ class EnrichedReplay(Replay):
 
         # set platoon mate
         if self.players_dict[self.player].squad_index is not None:
+            self.solo = False
             plat_id: int = self.players_dict[self.player].squad_index
             for player in self.allies:
                 if player == self.player:
