@@ -1,13 +1,18 @@
 from typing import List
 import logging
 from result import Result, Err, Ok
+import typer
+from typer import Context
 
 from tomlkit.items import Item as TOMLItem, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
+import tomlkit
 
 from pyutils import AsyncTyper
 
 from .models_reports import Reports
+from .args import read_param_fields
+
 
 logger = logging.getLogger()
 error = logger.error
@@ -16,6 +21,29 @@ verbose = logger.info
 debug = logger.debug
 
 app = AsyncTyper()
+
+
+@app.command("list")
+def reports_list(ctx: Context):
+    """
+    List available reports
+    """
+    reports: Reports = ctx.obj["reports"]
+    reports_param: str | None = ctx.obj["reports_param"]
+    if reports_param is not None:
+        reports = reports.with_config(read_param_fields(reports_param))
+    doc: TOMLDocument = tomlkit.document()
+    doc.add("REPORTS", reports.get_toml_report_sets())
+    typer.echo()
+    typer.echo("Configured options for --reports REPORT_SET")
+    typer.echo()
+    typer.echo(tomlkit.dumps(doc))
+    typer.echo()
+    doc = tomlkit.document()
+    doc.add("REPORT", reports.get_toml())
+    typer.echo("Configured reports:")
+    typer.echo()
+    typer.echo(tomlkit.dumps(doc))
 
 
 def read_analyze_reports(
