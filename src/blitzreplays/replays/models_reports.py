@@ -10,6 +10,7 @@ from typing import (
     Literal,
     Final,
 )
+from math import inf
 
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, field as data_field
@@ -767,12 +768,28 @@ class Categorization(ABC):
         else:
             return int(getattr(replay, self._field))
 
-    def get_category_float(self, replay: EnrichedReplay) -> float:
+    def get_category_float(
+        self, replay: EnrichedReplay, players: List[AccountId] = list()
+    ) -> float:
         """Get category field's value as float for the replay"""
-        if self._is_player_field:
-            return float(getattr(replay.players_dict[replay.player], self._field))
+        if len(players) == 0:
+            if self._is_player_field:
+                return float(getattr(replay.players_dict[replay.player], self._field))
+            else:
+                return float(getattr(replay, self._field))
         else:
-            return float(getattr(replay, self._field))
+            if not self._is_player_field:
+                raise ValueError("cannot use 'players' without a player field")
+            i: int = 0
+            res: float = 0
+            # ic(self.categorization)
+            for player in players:
+                if (
+                    val := float(getattr(replay.players_dict[player], self._field))
+                ) > 0:
+                    res += val
+                    i += 1
+            return res / i if i > 0 else inf
 
     def get_category_str(self, replay: EnrichedReplay) -> str:
         """Get category field's value as str for the replay"""
