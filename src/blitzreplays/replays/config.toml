@@ -103,9 +103,9 @@ format = ".0f"
 
 
 [REPORTS]
-default = ["total", "battle_result", "tank_tier", "tank_nation", "mastery_badge", "avg_dmg"]
-extra = ["is_premium", "battle_tier", "battle_mode", "solo", "battle_duration", "map", "enemy_wr", "replay"]
-
+default = ["total", "battle_result", "tank_tier", "mastery_badge", "avg_dmg"]
+extra = ["battle_tier", "battle_mode", "solo", "battle_duration", "map", "enemy_wr", "replay"]
+tank = ["tank_type", "tank_nation", "is_premium"]
 
 [REPORT.total]
 name = "All battles"
@@ -127,6 +127,11 @@ categories = ["-", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 name = "Tank nation"
 categorization = "string"
 field = "player.tank_nation"
+
+[REPORT.tank_type]
+name = "Tank type"
+categorization = "string"
+field = "player.tank_type"
 
 [REPORT.mastery_badge]
 name = "Mastery"
