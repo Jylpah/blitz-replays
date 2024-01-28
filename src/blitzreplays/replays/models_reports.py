@@ -257,6 +257,9 @@ class FieldStore:
             error(err)
             raise err
 
+    def __getitem__(self, key: str) -> ReportField:
+        return self.db[key]
+
     def items(self) -> List[Tuple[FieldKey, ReportField]]:
         """Return list of stored keys & fields as tuples"""
         return list(self.db.items())
