@@ -619,7 +619,10 @@ class RatioField(SumField):
             return ValueStore(val, div)
 
     def value(self, value: ValueStore) -> float:
-        return value.value / value.n
+        if value.n > 0:
+            return value.value / value.n
+        else:
+            return inf
 
 
 FieldStore.register(RatioField)
