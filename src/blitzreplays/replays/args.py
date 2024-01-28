@@ -1,11 +1,23 @@
 # module for CLI arguments related classes
-
+from typing import List, Set
+from pathlib import Path
 from enum import StrEnum
 from dataclasses import dataclass
 from typing import (
     Self,
     Literal,
 )
+import logging
+from re import Pattern
+import typer
+import sys
+from os import makedirs
+
+logger = logging.getLogger()
+error = logger.error
+message = logger.warning
+verbose = logger.info
+debug = logger.debug
 
 
 class EnumTeamFilter(StrEnum):
@@ -94,3 +106,27 @@ def ask_config_file() -> Path:
             error("%s: %s", type(err), err)
 
 
+def ask_input(
+    text: str, query: str, regexp: Pattern | None = None, options: List[str] = list()
+) -> str | None:
+    """
+    Read user input and validate it matches the 'regexp'
+    """
+    opts: Set[str] = set(options)
+    while True:
+        try:
+            typer.echo()
+            typer.echo(text)
+            typer.echo("(Press CTRL + C to cancel): ")
+            answer: str = input(query)
+            if (len(opts) > 0 and answer in opts) or (
+                regexp is not None and regexp.match(answer) is not None
+            ):
+                return answer
+            elif len(opts) == 0 and regexp is None:
+                return answer
+            else:
+                typer.echo(f"The input is not valid: {answer}")
+
+        except KeyboardInterrupt:
+            return None
