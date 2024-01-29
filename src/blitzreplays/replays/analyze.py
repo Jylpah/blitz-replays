@@ -14,7 +14,6 @@ import importlib
 
 from tomlkit.toml_file import TOMLFile
 
-# from tomlkit.items import Item as TOMLItem, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
 
 # from icecream import ic  # type: ignore
@@ -411,9 +410,6 @@ async def analyze_replays(
         try:
             debug("analyzing replay: %s", replay.title)
             stats_cache.add_stats(replay)
-
-            # for player in replay.get_players():
-            #     ic("check player data", player, replay.players_dict[player].wr)
 
             categories: List[Category] = list()
             for report in reports.reports:

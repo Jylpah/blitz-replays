@@ -478,6 +478,7 @@ class AverageIfField(SumField):
         else:
             res: int = 0
             n: int = 0
+
             for p in replay.get_players(self.filter):
                 try:
                     res += self._test_if(getattr(replay.players_dict[p], self._field))
@@ -662,7 +663,7 @@ class Category:
 
     def record(self, field: FieldKey, value: ValueStore | str) -> None:
         try:
-            if isinstance(value, FieldKey):
+            if isinstance(value, str):
                 self.strings[field] = value
             else:
                 self.values[field].record(value)
