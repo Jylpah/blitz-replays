@@ -68,8 +68,8 @@ def analyze_dir() -> str:
 FIXTURE_DIR = Path(dirname(realpath(__file__)))
 
 REPLAY_FILES = pytest.mark.datafiles(
-    FIXTURE_DIR / "20200229_2332__jylpah_E-50_lumber.wotbreplay",
-    FIXTURE_DIR / "20200229_2337__jylpah_E-50_skit.wotbreplay",
+    FIXTURE_DIR / "20240101_0124__jylpah_M48A1_49248854089005095.wotbreplay",
+    FIXTURE_DIR / "20240106_1649__jylpah_Pl22_CS_59_2318488532804003941.wotbreplay",
     on_duplicate="overwrite",
 )
 
