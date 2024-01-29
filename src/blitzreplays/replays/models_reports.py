@@ -1137,6 +1137,8 @@ class BucketCategorization(Categorization):
         table: tomlkit.items.Table = super().get_toml()
         table.add("buckets", list(self._buckets.keys()))
         table.add("bucket_labels", list(self._buckets.values()))
+        if self._filter is not None:
+            table.add("filter", self._filter.key)
         return table
 
 
