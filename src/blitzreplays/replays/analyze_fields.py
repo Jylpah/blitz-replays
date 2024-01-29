@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict
 import typer
 from typer import Context
 import logging
@@ -12,6 +12,7 @@ import tomlkit
 from pyutils import AsyncTyper
 
 from .models_reports import FieldStore
+from .args import read_param_fields
 
 logger = logging.getLogger()
 error = logger.error
@@ -38,12 +39,12 @@ def fields_list(ctx: Context):
     doc: TOMLDocument = tomlkit.document()
     doc.add("FIELDS", field_store.get_toml_field_sets())
     typer.echo()
-    typer.echo("Configured field sets for --fields FIELD_SET")
+    typer.echo("Configured options for --fields FIELD_SET")
     typer.echo()
     typer.echo(tomlkit.dumps(doc))
     typer.echo()
     doc = tomlkit.document()
-    doc.add("FIELD", field_store.get_toml_fields())
+    doc.add("FIELD", field_store.get_toml())
     typer.echo("Configured fields for field sets:")
     typer.echo()
     typer.echo(tomlkit.dumps(doc))
@@ -357,15 +358,3 @@ def read_analyze_fields(
             field_store.add(key=key, **field.unwrap())
 
     return Ok(field_store)
-
-
-def read_param_fields(fields: str) -> List[str]:
-    """
-    read --fields [+]FIELD_SET[,FIELD_SET1...]
-    """
-    res: List[str] = list()
-    if fields.startswith("+"):
-        fields = f"default,{fields[1:]}"
-    for report_set in fields.split(","):
-        res.append(report_set)
-    return res

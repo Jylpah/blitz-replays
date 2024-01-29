@@ -202,4 +202,4 @@ bucket_labels = [" < 1 min", "1 - 2 min", "2 - 3 min", "3 - 4 min", "4 - 5 min",
 [REPORT.replay]
 name = "Replay"
 categorization = "string"
-field = "title"
+field = "title_uniq"

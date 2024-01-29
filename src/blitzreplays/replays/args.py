@@ -20,6 +20,18 @@ verbose = logger.info
 debug = logger.debug
 
 
+def read_param_fields(fields: str) -> List[str]:
+    """
+    read param type of--field [+]FIELD_SET[,FIELD_SET1...]
+    """
+    res: List[str] = list()
+    if fields.startswith("+"):
+        fields = f"default,{fields[1:]}"
+    for report_set in fields.split(","):
+        res.append(report_set)
+    return res
+
+
 class EnumTeamFilter(StrEnum):
     player = "player"
     # plat_mate   = "plat_mate"

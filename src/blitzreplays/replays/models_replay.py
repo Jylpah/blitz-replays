@@ -9,6 +9,8 @@ from typing import (
 )
 from pydantic import Field, model_validator, ConfigDict
 
+# from icecream import ic  # type: ignore
+
 from pydantic_exportables import JSONExportable
 from blitzmodels import (
     AccountId,
@@ -234,6 +236,7 @@ class EnrichedReplay(Replay):
     map: str = "-"
     top_tier: bool = False
     solo: bool = True
+    title_uniq: str = "-"
 
     model_config = ConfigDict(
         extra="allow",
@@ -243,6 +246,9 @@ class EnrichedReplay(Replay):
 
     @model_validator(mode="after")
     def read_players_dict(self) -> Self:
+        self.title_uniq = (
+            f"{self.title} {self.battle_start_time.strftime('%Y-%m-%d %H:%M')}"
+        )
         for player_data in self.players_data:
             try:
                 self.players_dict[player_data.dbid] = EnrichedPlayerData.model_validate(
@@ -263,7 +269,7 @@ class EnrichedReplay(Replay):
         Prepare the (static) replay data for the particular analysis
         """
 
-        data: EnrichedPlayerData
+        player_data: EnrichedPlayerData
         if not self.is_complete:
             # message(f"replay is incomplete: {self.title}")
             return Err("replay is incomplete")
@@ -271,27 +277,27 @@ class EnrichedReplay(Replay):
         # remove tournament observe
         # message()rs
         players: List[AccountId] = list()
-        for player in self.allies:
-            if player in self.players_dict:
-                players.append(player)
+        for p in self.allies:
+            if p in self.players_dict:
+                players.append(p)
         self.allies = players
         players = list()
-        for player in self.enemies:
-            if player in self.players_dict:
-                players.append(player)
+        for p in self.enemies:
+            if p in self.players_dict:
+                players.append(p)
         self.enemies = players
 
         # add tanks
-        for data in self.players_dict.values():
-            tank_id: TankId = data.vehicle_descr
+        for player_data in self.players_dict.values():
+            tank_id: TankId = player_data.vehicle_descr
             try:
                 tank: Tank = tankopedia[tank_id]
-                data.tank = tank.name
-                data.tank_id = tank.tank_id
-                data.tank_type = str(tank.type)  # type: ignore
-                data.tank_tier = tank.tier.value
-                data.tank_is_premium = tank.is_premium
-                data.tank_nation = str(tank.nation)
+                player_data.tank = tank.name
+                player_data.tank_id = tank.tank_id
+                player_data.tank_type = str(tank.type)  # type: ignore
+                player_data.tank_tier = tank.tier.value
+                player_data.tank_is_premium = tank.is_premium
+                player_data.tank_nation = str(tank.nation)
 
                 self.battle_tier = max(self.battle_tier, int(tank.tier))
             except KeyError:
@@ -322,13 +328,17 @@ class EnrichedReplay(Replay):
         self.top_tier = self.players_dict[self.player].tank_tier == self.battle_tier
 
         # set platoon mate
-        if self.players_dict[self.player].squad_index is not None:
+        player_data = self.players_dict[self.player]
+        if player_data.squad_index is not None and (
+            self.data_version < 6 or player_data.squad_index > 0
+        ):
             self.solo = False
-            plat_id: int = self.players_dict[self.player].squad_index
+            plat_id: int = player_data.squad_index
             for player in self.allies:
                 if player == self.player:
                     continue
-                if self.players_dict[player].squad_index == plat_id:
+                p_data = self.players_dict[player]
+                if p_data.squad_index == plat_id:
                     self.plat_mate = [player]
 
         # remove player and his plat mate from allies
@@ -406,9 +416,9 @@ class EnrichedReplay(Replay):
                     EnumGroupFilter.tank_destroyer
                     | EnumGroupFilter.light_tank
                     | EnumGroupFilter.medium_tank
-                    | EnumVehicleTypeStr.heavy_tank
+                    | EnumGroupFilter.heavy_tank
                 ):
-                    tank_type = EnumVehicleTypeStr[filter.group.name].name
+                    tank_type = str(EnumVehicleTypeStr[filter.group.name])
                     for player in players:
                         data = self.players_dict[player]
                         if data.tank_type == tank_type:

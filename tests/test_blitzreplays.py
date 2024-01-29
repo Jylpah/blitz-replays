@@ -68,8 +68,8 @@ def analyze_dir() -> str:
 FIXTURE_DIR = Path(dirname(realpath(__file__)))
 
 REPLAY_FILES = pytest.mark.datafiles(
-    FIXTURE_DIR / "20200229_2332__jylpah_E-50_lumber.wotbreplay",
-    FIXTURE_DIR / "20200229_2337__jylpah_E-50_skit.wotbreplay",
+    FIXTURE_DIR / "20240101_0124__jylpah_M48A1_49248854089005095.wotbreplay",
+    FIXTURE_DIR / "20240106_1649__jylpah_Pl22_CS_59_2318488532804003941.wotbreplay",
     on_duplicate="overwrite",
 )
 
@@ -157,7 +157,7 @@ def test_2_blitzreplays_analyze_files(
 @pytest.mark.parametrize(
     "args",
     [
-        (["--fields", "+extra", "files"]),
+        (["--fields", "+extra,tank", "files"]),
         (["--player", "521458531", "files"]),
         (["--reports", "extra", "files"]),
         (
@@ -174,7 +174,7 @@ def test_2_blitzreplays_analyze_files(
     ],
 )
 @REPLAY_ANALYZE_FILES
-def test_3_blitzreplays_analyze_files(
+def test_3_blitzreplays_analyze(
     tmp_path: Path,
     datafiles: Path,
     args: List[str],
@@ -186,3 +186,26 @@ def test_3_blitzreplays_analyze_files(
         catch_exceptions=False,
     )
     assert result.exit_code == 0, f"blitzreplays analyze failed: {result.output}"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        (["fields", "list"]),
+        (["reports", "list"]),
+    ],
+)
+def test_4_blitzreplays_analyze(
+    tmp_path: Path,
+    datafiles: Path,
+    args: List[str],
+    analyze_dir: str,
+) -> None:
+    result: Result = CliRunner().invoke(
+        app,
+        ["analyze"] + args,
+        catch_exceptions=False,
+    )
+    assert (
+        result.exit_code == 0
+    ), f"blitzreplays analyze {' '.join(args)}: {result.output}"

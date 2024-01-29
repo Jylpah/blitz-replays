@@ -290,7 +290,7 @@ class FieldStore:
         """Return the number of fields"""
         return len(self.db)
 
-    def get_toml_fields(self) -> tomlkit.items.Table:
+    def get_toml(self) -> tomlkit.items.Table:
         """
         get field TOML config
         """
@@ -478,6 +478,7 @@ class AverageIfField(SumField):
         else:
             res: int = 0
             n: int = 0
+
             for p in replay.get_players(self.filter):
                 try:
                     res += self._test_if(getattr(replay.players_dict[p], self._field))
@@ -662,7 +663,7 @@ class Category:
 
     def record(self, field: FieldKey, value: ValueStore | str) -> None:
         try:
-            if isinstance(value, FieldKey):
+            if isinstance(value, str):
                 self.strings[field] = value
             else:
                 self.values[field].record(value)
@@ -890,6 +891,25 @@ class Reports:
             print()
             print(report.name.upper())
             report.print(fields)
+
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        get REPORT TOML config
+        """
+        table: tomlkit.items.Table = tomlkit.table()
+        for key, report in self.db.items():
+            table.add(key, report.get_toml())
+            table.add(tomlkit.nl())
+        return table
+
+    def get_toml_report_sets(self) -> tomlkit.items.Table:
+        """
+        get REPORTS TOML config
+        """
+        table: tomlkit.items.Table = tomlkit.table()
+        for name, report_set in self.report_sets.items():
+            table.add(name, report_set)
+        return table
 
 
 class Totals(Categorization):
