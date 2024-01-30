@@ -76,6 +76,8 @@ class ReportField:
 
     _replay_fields: ClassVar[List[str]] = [
         "battle_duration",
+        "battle_tier",
+        "plat_mate",
         "exp",
         "exp_total",
         "exp_free",
@@ -90,14 +92,21 @@ class ReportField:
         "damage_made",
         "credits_base",
         "credits_total",
+        "map",
         "repair_cost",
+        "solo",
+        "title",
+        "title_uniq",
+        "top_tier",
     ]
 
     _player_fields: ClassVar[List[str]] = [
         f"player.{key}"
         for key in [
+            "avgdmg",
             "base_capture_points",
             "base_defend_points",
+            "battles",
             "credits",
             "damage_assisted",
             "damage_assisted_track",
@@ -120,12 +129,18 @@ class ReportField:
             "hits_pen",
             "hits_received",
             "hits_splash",
+            "tank",
+            "tank_tier",
+            "tank_type",
+            "tank_nation",
+            "tank_is_premium",
             "shots_made",
             "shots_hit",
             "shots_pen",
             "shots_splash",
             "wp_points_earned",
             "wp_points_stolen",
+            "wr",
         ]
     ]
 
