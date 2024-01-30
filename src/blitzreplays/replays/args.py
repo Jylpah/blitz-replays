@@ -20,9 +20,9 @@ verbose = logger.info
 debug = logger.debug
 
 
-def read_param_fields(fields: str) -> List[str]:
+def read_param_list(fields: str) -> List[str]:
     """
-    read param type of--field [+]FIELD_SET[,FIELD_SET1...]
+    read param type of --param [+]PARAM[,PARAM1...]
     """
     res: List[str] = list()
     if fields.startswith("+"):

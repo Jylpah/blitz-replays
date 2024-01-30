@@ -1,6 +1,7 @@
 import typer
+import sys
 from typer import Context, Option, Argument
-from typing import Annotated, Optional, List, Final, Tuple, Literal
+from typing import Annotated, Optional, List, Final, Tuple
 from asyncio import create_task, Task, sleep
 import logging
 from pathlib import Path
@@ -13,7 +14,6 @@ from importlib.resources import as_file
 import importlib
 
 from tomlkit.toml_file import TOMLFile
-
 from tomlkit.toml_document import TOMLDocument
 
 # from icecream import ic  # type: ignore
@@ -29,11 +29,11 @@ from blitzmodels import (
 )
 # from blitzmodels.wotinspector.wi_apiv1 import ReplayJSON
 
-from .args import EnumStatsTypes
+from .args import EnumStatsTypes, read_param_list
 from .models_reports import (
     Category,
     EnrichedReplay,
-    FieldStore,
+    Fields,
     Reports,
     ValueStore,
 )
@@ -46,9 +46,8 @@ from .cache import (
 from .analyze_reports import (
     app as reports_app,
     read_analyze_reports,
-    read_param_reports,
 )
-from .analyze_fields import app as fields_app, read_analyze_fields, read_param_fields
+from .analyze_fields import app as fields_app, read_analyze_fields
 
 app = AsyncTyper()
 
@@ -83,6 +82,7 @@ def callback_paths(value: Optional[list[Path]]) -> list[Path]:
     return value if value is not None else []
 
 
+# TODO: add --export TSV export
 @app.callback()
 def analyze(
     ctx: Context,
@@ -118,7 +118,7 @@ def analyze(
     """
     analyze replays
     """
-    fields = FieldStore()
+    fields = Fields()
     reports = Reports()
     try:
         config: ConfigParser = ctx.obj["config"]
@@ -145,13 +145,8 @@ def analyze(
         raise SystemExit
 
     try:
-        # TODO: default_report .ini config param ?
-        ctx.obj["fields_param"] = set_config(
-            config, FIELDS_DEFAULT, "REPLAYS_ANALYZE", "fields", fields_param
-        )
-        ctx.obj["reports_param"] = set_config(
-            config, REPORTS_DEFAULT, "REPLAYS_ANALYZE", "reports", reports_param
-        )
+        ctx.obj["fields_param"] = fields_param
+        ctx.obj["reports_param"] = reports_param
 
         def_config: Traversable = importlib.resources.files(
             "blitzreplays.replays"
@@ -172,7 +167,7 @@ def analyze(
         raise SystemExit
 
     try:
-        NO_ANALYZE_CONFIG = Literal["__NO_ANALYZE_CONFIG__"]
+        NO_ANALYZE_CONFIG: str = "__NO_ANALYZE_CONFIG__"
         analyze_config_fn = set_config(
             config,
             "__NO_ANALYZE_CONFIG__",
@@ -334,15 +329,18 @@ async def files(
         await stats.gather_stats(api_workers)
         stats_cache.fill_cache(query_cache)
 
-        fields_all: FieldStore = ctx.obj["fields"]
-        fields: FieldStore = fields_all.with_config(
-            read_param_fields(ctx.obj["fields_param"])
-        )
+        fields_all: Fields = ctx.obj["fields"]
+        fields_param: str | None
+        if (fields_param := ctx.obj["fields_param"]) is None:
+            fields_param = FIELDS_DEFAULT
+        fields: Fields = fields_all.with_config(read_param_list(fields_param))
 
         reports_all: Reports = ctx.obj["reports"]
-        reports: Reports = reports_all.with_config(
-            read_param_reports(ctx.obj["reports_param"])
-        )
+        reports_param: str | None
+        if (reports_param := ctx.obj["reports_param"]) is None:
+            reports_param = REPORTS_DEFAULT
+        reports: Reports = reports_all.with_config(read_param_list(reports_param))
+
         await analyze_replays(
             replayQ=replayQ,
             stats_cache=stats_cache,
@@ -357,6 +355,8 @@ async def files(
         debug("canceling workers... ")
         for task in replay_readers + api_workers:
             task.cancel()
+        await wg_api.close()
+        sys.exit(1)
 
     except Exception as err:
         error(f"{type(err)}: {err}")
@@ -366,13 +366,10 @@ async def files(
 
 def read_analyze_config(
     filename: Path,
-) -> Result[Tuple[Reports, FieldStore], str]:
+) -> Result[Tuple[Reports, Fields], str]:
     """
     Read analyze config TOML file
     """
-    # TODO: move TOML file reading into a separate function
-    # TODO: merge / update default config with user config (verbose(default config overwritten))
-    # TODO: default_report .ini config param ?
 
     try:
         if filename is None:
@@ -384,10 +381,10 @@ def read_analyze_config(
             return Err(f"could not read analyze TOML config file: {filename}")
 
         if isinstance(res_fields := read_analyze_fields(config), Err):
-            return Err(f"could not read FIELDS from analyze config file {filename}")
+            return Err(f"{res_fields.err_value}: {filename}")
 
         if isinstance(res_reports := read_analyze_reports(config), Err):
-            return Err(f"could not read REPORTS from analyze config file {filename}")
+            return Err(f"{res_reports.err_value}: {filename}")
 
         return Ok((res_reports.ok_value, res_fields.ok_value))
     except Exception as err:
@@ -397,7 +394,7 @@ def read_analyze_config(
 async def analyze_replays(
     replayQ: IterableQueue[EnrichedReplay],
     stats_cache: StatsCache,
-    fields: FieldStore,
+    fields: Fields,
     reports: Reports,
     player: int = 0,
 ) -> EventCounter:

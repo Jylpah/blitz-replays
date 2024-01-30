@@ -1,4 +1,3 @@
-from typing import Dict
 import typer
 from typer import Context
 import logging
@@ -11,8 +10,8 @@ import tomlkit
 
 from pyutils import AsyncTyper
 
-from .models_reports import FieldStore
-from .args import read_param_fields
+from .models_reports import Fields
+from .args import read_param_list
 
 logger = logging.getLogger()
 error = logger.error
@@ -22,9 +21,16 @@ debug = logger.debug
 
 app = AsyncTyper()
 
-metrics = list(FieldStore.registry.keys())
+metrics = list(Fields.registry.keys())
 
 FieldMetric = Enum("FieldMetric", dict(zip(metrics, metrics)))  # type: ignore
+
+
+@app.callback()
+def fields():
+    """
+    Report field config
+    """
 
 
 @app.command("list")
@@ -32,10 +38,10 @@ def fields_list(ctx: Context):
     """
     List available fields
     """
-    field_store: FieldStore = ctx.obj["fields"]
+    field_store: Fields = ctx.obj["fields"]
     fields_param: str | None = ctx.obj["fields_param"]
     if fields_param is not None:
-        field_store = field_store.with_config(read_param_fields(fields_param))
+        field_store = field_store.with_config(read_param_list(fields_param))
     doc: TOMLDocument = tomlkit.document()
     doc.add("FIELDS", field_store.get_toml_field_sets())
     typer.echo()
@@ -306,55 +312,56 @@ def fields_list(ctx: Context):
 #         error(err)
 
 
-def read_analyze_fields(
-    config: TOMLDocument, fields: str | None = None
-) -> Result[FieldStore, str]:
+def read_analyze_fields(config: TOMLDocument) -> Result[Fields, str]:
     """
     Read FIELD config from analyze TOML config
     """
+    try:
+        toml_item: TOMLItem | None = None
+        field_store = Fields()
 
-    fields_item: TOMLItem | None = None
-    if (fields_item := config.item("FIELDS")) is None:
-        return Err("'FIELDS' is not defined in analyze_config file")
-    if not (isinstance(fields_item, TOMLTable)):
-        return Err(f"FIELDS is not TOML Table: {type(fields_item)}")
+        if "FIELDS" in config and isinstance(
+            toml_item := config.item("FIELDS"), TOMLTable
+        ):
+            for key, field_set in toml_item.items():
+                field_store.field_sets[key] = field_set
+        else:
+            debug("'FIELDS' is not defined in analyze config")
 
-    if (field_item := config.item("FIELD")) is None:
-        return Err("'FIELD' is not defined in analyze_config file")
-    if not (isinstance(field_item, TOMLTable)):
-        return Err(f"FIELD is not TOML Table: {type(field_item)}")
+        if "FIELD" in config and isinstance(
+            toml_item := config.item("FIELD"), TOMLTable
+        ):
+            for key, field in toml_item.items():
+                field_store.add(key=key, **field.unwrap())
+        else:
+            debug("'FIELD' is not defined in analyze config")
 
-    field_store = FieldStore()
-    fld: Dict[str, str]
+        return Ok(field_store)
 
-    if fields is not None:
-        # append field set to the
-        if fields.startswith("+"):
-            fields = f"default,{fields[1:]}"
-        field_key: str
-        for field_list in fields.split(","):
-            debug("FIELDS.%s", field_list)
-            try:
-                if (fields_table := fields_item.get(field_list)) is None:
-                    debug("field list not defined: 'FIELDS.%s'", field_list)
-                    raise KeyError()
-                field_store.field_sets[field_list] = fields_table.unwrap()
-                for field_key in fields_table.unwrap():
-                    debug("field key=%s", field_key)
-                    # for fld in config_item[field_mode].unwrap():
-                    if (fld_config := field_item.get(field_key)) is None:
-                        debug("field 'FIELD.%s' is not defined", field_key)
-                        raise KeyError
-                    fld = fld_config.unwrap()
-                    debug("adding FIELD: %s", str(fld))
-                    field_store.add(key=field_key, **fld)
-            except KeyError:
-                debug(f"failed to define field list: {field_list}")
-    else:
-        # return all FIELDs
-        for key, field_set in fields_item.items():
-            field_store.field_sets[key] = field_set
-        for key, field in field_item.items():
-            field_store.add(key=key, **field.unwrap())
+    except Exception as err:
+        return Err(f"{err}")
 
-    return Ok(field_store)
+
+# if fields.startswith("+"):
+
+# fld: Dict[str, str]
+#             fields = f"default,{fields[1:]}"
+#         field_key: str
+#         for field_list in fields.split(","):
+#             debug("FIELDS.%s", field_list)
+#             try:
+#                 if (fields_table := fields_item.get(field_list)) is None:
+#                     debug("field list not defined: 'FIELDS.%s'", field_list)
+#                     raise KeyError()
+#                 field_store.field_sets[field_list] = fields_table.unwrap()
+#                 for field_key in fields_table.unwrap():
+#                     debug("field key=%s", field_key)
+#                     # for fld in config_item[field_mode].unwrap():
+#                     if (fld_config := field_item.get(field_key)) is None:
+#                         debug("field 'FIELD.%s' is not defined", field_key)
+#                         raise KeyError
+#                     fld = fld_config.unwrap()
+#                     debug("adding FIELD: %s", str(fld))
+#                     field_store.add(key=field_key, **fld)
+#             except KeyError:
+#                 debug(f"failed to define field list: {field_list}")
