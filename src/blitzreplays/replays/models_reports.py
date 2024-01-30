@@ -276,6 +276,7 @@ class Reports:
     def update(self, other: "Reports") -> None:
         """update reports with 'other'"""
         self.db.update(other.db)
+        self.report_sets.update(other.report_sets)
         return None
 
     @classmethod
