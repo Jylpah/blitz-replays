@@ -253,6 +253,9 @@ Options:
   --wg-region [ru|eu|com|asia|china|BOTS]
                                   WG API region (default: eu)
   --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
+  --export / --no-export          export reports to a Tab-delimited text file
+                                  [default: no-export]
+  --export-fn PATH                file to export to  [default: export.txt]
   --help                          Show this message and exit.
 
 ```
