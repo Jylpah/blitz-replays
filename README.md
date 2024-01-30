@@ -1,9 +1,11 @@
+[![Python package](https://github.com/Jylpah/blitz-replays/actions/workflows/python-app.yml/badge.svg)](https://github.com/Jylpah/blitz-replays/actions/workflows/python-app.yml)  [![codecov](https://codecov.io/gh/Jylpah/blitz-replays/graph/badge.svg?token=CCJCGS112S)](https://codecov.io/gh/Jylpah/blitz-replays)
+
 # blitz-replays
 
-Command line tool to upload and analyze WoT Blitz replays. Runs on Windows, Mac and Linux. 
+Set of command line tools to upload and analyze WoT Blitz replays. 
 
 * `blitz-replays`: upload and analyze Blitz replays
-* `blitz-data`: extract updated game metadata (maps and tankopedia) for `blitz-replays` 
+* `blitz-data`: extract game metadata (maps and tankopedia) required by `blitz-replays` 
 
 ## Example
 
@@ -56,6 +58,10 @@ pip install git+https://github.com/Jylpah/blitz-replays.git
 ```
 pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
 ```
+
+# Configuration
+
+`blitz-replays analyze` provides a set of reports (tables) and fields (columns) by default. You can add your own reports and fields with `--analyze-config YOUR_CONFIG_FILE.toml`. The analyze config is a [TOML 1.0](https://toml.io/) format file. See examples and inspiration from the [in-built config file](https://github.com/Jylpah/blitz-replays/blob/main/src/blitzreplays/replays/config.toml).
 
 # Usage
 
@@ -219,15 +225,17 @@ Options:
   --stats-type [player|tier|tank]
                                   stats to use for player stats
   --fields TEXT                   set report fields, combine field modes with
-                                  '+'  [default: default]
+                                  '+'
   --reports TEXT                  reports to create. use '+' to add extra
-                                  reports  [default: default]
+                                  reports
   --player INTEGER                player to analyze (WG account_id), default:
                                   player who recorded the replay
   --help                          Show this message and exit.
 
 Commands:
-  files  analyze replays from JSON files
+  fields   Report field config
+  files    analyze replays from JSON files
+  reports  Report table config
 
 ```
 ### `blitz-replays analyze files` usage
