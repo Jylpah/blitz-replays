@@ -275,6 +275,7 @@ class FieldStore:
         update instance with other
         """
         self.db.update(other.db)
+        self.field_sets.update(other.field_sets)
         return None
 
     @classmethod
