@@ -24,6 +24,13 @@ debug = logger.debug
 app = AsyncTyper()
 
 
+@app.callback()
+def reports():
+    """
+    Report table config
+    """
+
+
 @app.command("list")
 def reports_list(ctx: Context):
     """

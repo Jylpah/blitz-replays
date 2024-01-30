@@ -26,6 +26,13 @@ metrics = list(Fields.registry.keys())
 FieldMetric = Enum("FieldMetric", dict(zip(metrics, metrics)))  # type: ignore
 
 
+@app.callback()
+def fields():
+    """
+    Report field config
+    """
+
+
 @app.command("list")
 def fields_list(ctx: Context):
     """
