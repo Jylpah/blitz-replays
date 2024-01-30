@@ -247,7 +247,7 @@ class EnrichedReplay(Replay):
     @model_validator(mode="after")
     def read_players_dict(self) -> Self:
         self.title_uniq = (
-            f"{self.title} {self.battle_start_time.strftime('%Y-%m-%d %H:%M')}"
+            f"{self.battle_start_time.strftime('%Y-%m-%d %H:%M')} {self.title}"
         )
         for player_data in self.players_data:
             try:
