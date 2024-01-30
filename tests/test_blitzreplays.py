@@ -75,9 +75,14 @@ REPLAY_FILES = pytest.mark.datafiles(
 
 REPLAY_ANALYZE_FILES = pytest.mark.datafiles(
     FIXTURE_DIR / "replays-analyze",
-    on_duplicate="ignore",
+    on_duplicate="overwrite",
+    keep_top_dir=True,
 )
 
+ANALYZE_CONFIG = pytest.mark.datafiles(
+    FIXTURE_DIR / "analyze_config.toml",
+    on_duplicate="ignore",
+)
 TANKOPEDIA: str = "01_Tankopedia_new.json"
 TANKOPEDIA_FILE = pytest.mark.datafiles(
     FIXTURE_DIR / TANKOPEDIA,  # 609 tanks
@@ -193,8 +198,10 @@ def test_3_blitzreplays_analyze(
     [
         (["fields", "list"]),
         (["reports", "list"]),
+        (["--analyze-config", "analyze_config.toml", "reports", "list"]),
     ],
 )
+@ANALYZE_CONFIG
 def test_4_blitzreplays_analyze(
     tmp_path: Path,
     datafiles: Path,
