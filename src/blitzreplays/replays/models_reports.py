@@ -7,11 +7,12 @@ from typing import (
     Type,
 )
 from math import inf
-
+from pathlib import Path
 from abc import abstractmethod, ABC
 from collections import defaultdict
 from sortedcollections import NearestDict  # type: ignore
 from tabulate import tabulate  # type: ignore
+import aiofiles
 
 # from icecream import ic  # type: ignore
 
@@ -119,10 +120,12 @@ class Categorization(ABC):
         """Print help"""
         print(f'categorization = "{cls.categorization}": {cls.__doc__}')
 
-    def print(self, fields: Fields) -> None:
+    def print(self, fields: Fields, export: bool = False) -> str:
         """Print a report"""
         debug("Report: %s", str(fields))
-        header: List[str] = [field.name for field in fields.fields()]
+        header: List[str] = [self.name.upper()] + [
+            field.name for field in fields.fields()
+        ]
         data: List[List[str]] = list()
         for cat_key in self.categories:
             try:
@@ -139,7 +142,10 @@ class Categorization(ABC):
             except KeyError as err:
                 error("category=%s: %s: %s", cat_key, type(err), str(err))
         debug("data=%s", str(data))
-        print(tabulate(data, headers=header))
+        if export:
+            return tabulate(data, headers=header, tablefmt="tsv")
+        else:
+            return tabulate(data, headers=header)
 
     def parse_field(self, field: str) -> Tuple[str, bool]:
         """parse field and check is it a player field"""
@@ -288,8 +294,16 @@ class Reports:
         """Print reports"""
         for report in self.db.values():
             print()
-            print(report.name.upper())
-            report.print(fields)
+            print(report.print(fields))
+
+    async def export(self, fields: Fields, filename: Path):
+        """
+        Export reports to a TSV file
+        """
+        async with aiofiles.open(filename, "w") as f:
+            for report in self.db.values():
+                await f.write("\n\n")
+                await f.write(report.print(fields, export=True))
 
     def get_toml(self) -> tomlkit.items.Table:
         """

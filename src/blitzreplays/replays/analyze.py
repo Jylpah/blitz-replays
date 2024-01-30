@@ -226,6 +226,10 @@ async def files(
         Optional[float],
         Option(show_default=False, help="WG API rate limit, default=10/sec"),
     ] = None,
+    export: Annotated[
+        bool, Option(help="export reports to a Tab-delimited text file")
+    ] = False,
+    export_fn: Annotated[Path, Option(help="file to export to")] = Path("export.txt"),
     replays: List[Path] = Argument(help="replays to upload", callback=callback_paths),
 ) -> None:
     """
@@ -348,8 +352,12 @@ async def files(
             reports=reports,
             player=player,
         )
+
         reports.print(fields=fields)
-        print()
+        typer.echo()
+
+        if export:
+            await reports.export(fields=fields, filename=export_fn)
         verbose(stats.print(do_print=False))
     except SystemExit:
         debug("canceling workers... ")

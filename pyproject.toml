@@ -1,6 +1,6 @@
 [project]
 name = "blitz-replays"
-version = "0.5.10"
+version = "0.5.11"
 authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"

@@ -142,7 +142,7 @@ def test_1_blitzreplays_upload(
 @pytest.mark.parametrize(
     "args",
     [
-        (["--stats-type", "player", "files"]),
+        (["--stats-type", "player", "files", "--export"]),
         (["--stats-type", "tier", "files"]),
         (["--stats-type", "tank", "files"]),
     ],
