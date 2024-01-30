@@ -65,14 +65,14 @@ def fields_available():
     typer.echo()
     typer.echo("Available main fields replays")
     typer.echo()
-    for field in ReportField._replay_fields:
+    for field in sorted(ReportField._replay_fields):
         typer.echo(f"\t{field}")
 
     typer.echo()
     typer.echo("Available player fields in replays")
     typer.echo()
 
-    for field in ReportField._player_fields:
+    for field in sorted(ReportField._player_fields):
         typer.echo(f"\t{field}")
     typer.echo()
 
