@@ -10,8 +10,9 @@ import tomlkit
 
 from pyutils import AsyncTyper
 
-from .models_reports import Fields
+from .models_fields import Fields, ReportField
 from .args import read_param_list
+
 
 logger = logging.getLogger()
 error = logger.error
@@ -36,7 +37,7 @@ def fields():
 @app.command("list")
 def fields_list(ctx: Context):
     """
-    List available fields
+    List configured fields
     """
     field_store: Fields = ctx.obj["fields"]
     fields_param: str | None = ctx.obj["fields_param"]
@@ -54,6 +55,26 @@ def fields_list(ctx: Context):
     typer.echo("Configured fields for field sets:")
     typer.echo()
     typer.echo(tomlkit.dumps(doc))
+
+
+@app.command("available")
+def fields_available():
+    """
+    List available replay fields
+    """
+    typer.echo()
+    typer.echo("Available main fields replays")
+    typer.echo()
+    for field in ReportField._replay_fields:
+        typer.echo(f"\t{field}")
+
+    typer.echo()
+    typer.echo("Available player fields in replays")
+    typer.echo()
+
+    for field in ReportField._player_fields:
+        typer.echo(f"\t{field}")
+    typer.echo()
 
 
 # @app.async_command("add")
