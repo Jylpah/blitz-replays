@@ -1,6 +1,3 @@
-[GENERAL]
-reports = ["TOTAL", "battle_result", "battle_type"]
-
 [FIELDS]
 default = ["battles", "WR", "avg_dmg", "avg_kills", "spot_rate", "top_tier", "DR", "allies_wr", "enemies_wr"]
 extra = ["survival", "allied_platoon_wr", "enemy_platoon_wr", "allies_avg_dmg", "enemies_avg_dmg"]

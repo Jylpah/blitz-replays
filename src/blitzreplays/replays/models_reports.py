@@ -25,7 +25,7 @@ from .args import (
     PlayerFilter,
 )
 from .models_replay import EnrichedReplay
-from .models_fields import ValueStore, FieldKey, FieldStore
+from .models_fields import ValueStore, FieldKey, Fields
 
 logger = logging.getLogger()
 error = logger.error
@@ -119,7 +119,7 @@ class Categorization(ABC):
         """Print help"""
         print(f'categorization = "{cls.categorization}": {cls.__doc__}')
 
-    def print(self, fields: FieldStore) -> None:
+    def print(self, fields: Fields) -> None:
         """Print a report"""
         debug("Report: %s", str(fields))
         header: List[str] = [field.name for field in fields.fields()]
@@ -284,7 +284,7 @@ class Reports:
         """Register a known report type"""
         cls._db[categorization.categorization] = categorization
 
-    def print(self, fields: FieldStore) -> None:
+    def print(self, fields: Fields) -> None:
         """Print reports"""
         for report in self.db.values():
             print()

@@ -1,4 +1,3 @@
-from typing import List
 import logging
 from result import Result, Err, Ok
 import typer
@@ -8,10 +7,12 @@ from tomlkit.items import Item as TOMLItem, Table as TOMLTable
 from tomlkit.toml_document import TOMLDocument
 import tomlkit
 
+# from icecream import ic  # type: ignore
+
 from pyutils import AsyncTyper
 
 from .models_reports import Reports
-from .args import read_param_fields
+from .args import read_param_list
 
 
 logger = logging.getLogger()
@@ -31,7 +32,7 @@ def reports_list(ctx: Context):
     reports: Reports = ctx.obj["reports"]
     reports_param: str | None = ctx.obj["reports_param"]
     if reports_param is not None:
-        reports = reports.with_config(read_param_fields(reports_param))
+        reports = reports.with_config(read_param_list(reports_param))
     doc: TOMLDocument = tomlkit.document()
     doc.add("REPORTS", reports.get_toml_report_sets())
     typer.echo()
@@ -46,65 +47,55 @@ def reports_list(ctx: Context):
     typer.echo(tomlkit.dumps(doc))
 
 
-def read_analyze_reports(
-    config: TOMLDocument, reports: str | None = None
-) -> Result[Reports, str]:
+def read_analyze_reports(config: TOMLDocument) -> Result[Reports, str]:
     """
     read REPORT config from analyze TOML config
     """
+    try:
+        toml_item: TOMLItem | None = None
+        report_store = Reports()
 
-    reports_item: TOMLItem | None = None
-    if (reports_item := config.item("REPORTS")) is None:
-        return Err("'REPORTS' is not defined in analyze_config file")
-    if not (isinstance(reports_item, TOMLTable)):
-        return Err(f"REPORTS is not a TOML Table: {type(reports_item)}")
+        if "REPORTS" in config and isinstance(
+            toml_item := config.item("REPORTS"), TOMLTable
+        ):
+            for key, report_set in toml_item.items():
+                report_store.add_report_set(key, report_set)
+        else:
+            debug("'REPORTS' is not defined in analyze_config")
 
-    report_store = Reports()
-    debug("Reports -------------------------------------------------------")
-    report_item: TOMLItem | None = None
-    if (report_item := config.item("REPORT")) is None:
-        return Err("'REPORT' is not defined in analyze_config file")
-    if not (isinstance(report_item, TOMLTable)):
-        return Err(f"REPORT is not TOML Table: {type(report_item)}")
+        if "REPORT" in config and isinstance(
+            toml_item := config.item("REPORT"), TOMLTable
+        ):
+            for key, rpt in toml_item.items():
+                report_store.add(key=key, **rpt)
+        else:
+            debug("'REPORT' is not defined in analyze_config")
 
-    if reports is not None:
-        # '+' appends to default reports
-        if reports.startswith("+"):
-            reports = f"default,{reports[1:]}"
-        report_key: str
-        for report_list in reports.split(","):
-            debug("report list=%s", report_list)
-            try:
-                if (reports_table := reports_item.get(report_list)) is None:
-                    debug("report list not defined: 'REPORTS.%s'", report_list)
-                    raise KeyError()
-                for report_key in reports_table.unwrap():
-                    debug("report key=%s", report_key)
-                    if (rpt_config := report_item.get(report_key)) is None:
-                        debug("report 'REPORT.%s' is not defined", report_key)
-                        raise KeyError
-                    rpt = rpt_config.unwrap()
-                    debug("adding report: %s", str(rpt))
-                    report_store.add(key=report_key, **rpt)
-            except KeyError:
-                debug(f"failed to define report list: {report_list}")
-    else:
-        # return all REPORTs
-        for key, report_set in reports_item.items():
-            report_store.add_report_set(key, report_set)
-        for key, rpt in report_item.items():
-            report_store.add(key=key, **rpt)
+        return Ok(report_store)
 
-    return Ok(report_store)
+    except Exception as err:
+        return Err(str(err))
 
 
-def read_param_reports(reports: str) -> List[str]:
-    """
-    read --reports [+]REPORT_SET[,REPORT_SET1...]
-    """
-    res: List[str] = list()
-    if reports.startswith("+"):
-        reports = f"default,{reports[1:]}"
-    for report_set in reports.split(","):
-        res.append(report_set)
-    return res
+# if reports is not None:
+#         # '+' appends to default reports
+#         if reports.startswith("+"):
+#             reports = f"default,{reports[1:]}"
+#         report_key: str
+#         for report_list in reports.split(","):
+#             debug("report list=%s", report_list)
+#             try:
+#                 if (reports_table := reports_item.get(report_list)) is None:
+#                     debug("report list not defined: 'REPORTS.%s'", report_list)
+#                     raise KeyError()
+#                 for report_key in reports_table.unwrap():
+#                     debug("report key=%s", report_key)
+#                     if (rpt_config := report_item.get(report_key)) is None:
+#                         debug("report 'REPORT.%s' is not defined", report_key)
+#                         raise KeyError
+#                     rpt = rpt_config.unwrap()
+#                     debug("adding report: %s", str(rpt))
+#                     report_store.add(key=report_key, **rpt)
+#             except KeyError:
+#                 debug(f"failed to define report list: {report_list}")
+#     else:

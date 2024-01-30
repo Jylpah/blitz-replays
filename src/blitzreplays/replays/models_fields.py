@@ -202,7 +202,7 @@ class ReportField:
 
 
 @dataclass
-class FieldStore:
+class Fields:
     """
     Register of available field metrics and report fields
     """
@@ -270,7 +270,7 @@ class FieldStore:
         """Return a list of ReportFields"""
         return list(self.db.values())
 
-    def update(self, other: "FieldStore") -> None:
+    def update(self, other: "Fields") -> None:
         """
         update instance with other
         """
@@ -305,11 +305,11 @@ class FieldStore:
             table.add(name, field_set)
         return table
 
-    def with_config(self, field_sets: List[str]) -> "FieldStore":
+    def with_config(self, field_sets: List[str]) -> "Fields":
         """
         get FieldStore according to the 'field_set' config
         """
-        res = FieldStore()
+        res = Fields()
         for key in field_sets:
             try:
                 res.field_sets[key] = self.field_sets[key]
@@ -339,7 +339,7 @@ class CountField(ReportField):
         return float(v)
 
 
-FieldStore.register(CountField)
+Fields.register(CountField)
 
 
 @dataclass
@@ -378,7 +378,7 @@ class SumField(ReportField):
         return float(value.value)
 
 
-FieldStore.register(SumField)
+Fields.register(SumField)
 
 
 @dataclass
@@ -413,7 +413,7 @@ class AverageField(SumField):
         return value.value / value.n
 
 
-FieldStore.register(AverageField)
+Fields.register(AverageField)
 
 CmpOps = Literal["eq", "gt", "lt", "gte", "lte"]
 
@@ -493,7 +493,7 @@ class AverageIfField(SumField):
         return float(value.value / value.n)
 
 
-FieldStore.register(AverageIfField)
+Fields.register(AverageIfField)
 
 
 @dataclass
@@ -526,7 +526,7 @@ class MinField(ReportField):
         return float(value.value)
 
 
-FieldStore.register(MinField)
+Fields.register(MinField)
 
 
 @dataclass
@@ -555,7 +555,7 @@ class MaxField(ReportField):
         return float(value.value)
 
 
-FieldStore.register(MaxField)
+Fields.register(MaxField)
 
 
 @dataclass
@@ -629,4 +629,4 @@ class RatioField(SumField):
             return inf
 
 
-FieldStore.register(RatioField)
+Fields.register(RatioField)
