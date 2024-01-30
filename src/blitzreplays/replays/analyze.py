@@ -1,4 +1,5 @@
 import typer
+import sys
 from typer import Context, Option, Argument
 from typing import Annotated, Optional, List, Final, Tuple
 from asyncio import create_task, Task, sleep
@@ -354,6 +355,8 @@ async def files(
         debug("canceling workers... ")
         for task in replay_readers + api_workers:
             task.cancel()
+        await wg_api.close()
+        sys.exit(1)
 
     except Exception as err:
         error(f"{type(err)}: {err}")
