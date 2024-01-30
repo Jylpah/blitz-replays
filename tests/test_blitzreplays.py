@@ -197,8 +197,18 @@ def test_3_blitzreplays_analyze(
     "args",
     [
         (["fields", "list"]),
+        (["fields", "available"]),
         (["reports", "list"]),
-        (["--analyze-config", "analyze_config.toml", "reports", "list"]),
+        (
+            [
+                "--analyze-config",
+                "analyze_config.toml",
+                "--reports",
+                "+example",
+                "reports",
+                "list",
+            ]
+        ),
     ],
 )
 @ANALYZE_CONFIG
