@@ -196,17 +196,19 @@ def test_3_blitzreplays_analyze(
 @pytest.mark.parametrize(
     "args",
     [
-        (["fields", "list"]),
-        (["fields", "available"]),
-        (["reports", "list"]),
+        (["info", "fields"]),
+        (["info", "filters"]),
+        (["info", "metrics"]),
+        (["info", "replay"]),
+        (["info", "reports"]),
         (
             [
                 "--analyze-config",
                 "analyze_config.toml",
                 "--reports",
                 "+example",
+                "info",
                 "reports",
-                "list",
             ]
         ),
     ],
