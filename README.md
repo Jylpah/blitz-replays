@@ -80,3 +80,216 @@ pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
 `blitz-replays analyze` provides a set of reports (tables) and fields (columns) by default. You can add your own reports and fields with `--analyze-config YOUR_CONFIG_FILE.toml`. The analyze config is a [TOML 1.0](https://toml.io/) format file. See examples and inspiration from the [in-built config file](https://github.com/Jylpah/blitz-replays/blob/main/src/blitzreplays/replays/config.toml).
 
 # Usage
+
+## `blitz-replays` usage
+
+```
+Usage: blitz-replays [OPTIONS] COMMAND [ARGS]...
+
+  CLI app to upload WoT Blitz replays
+
+Options:
+  -v, --verbose         verbose logging
+  --debug               debug logging
+  --force / --no-force  Overwrite instead of updating data
+  --config FILE         read config from FILE  [default:
+                        /home/jarno/.config/blitzstats/config]
+  --log FILE            log to FILE
+  --tankopedia FILE     tankopedia JSON file
+  --maps FILE           maps JSON file
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or
+                        customize the installation.
+  --help                Show this message and exit.
+
+Commands:
+  analyze  analyze replays
+  upload   upload replays to https://WoTinspector.com
+
+```
+### `blitz-replays upload` usage
+
+```
+Usage: blitz-replays upload [OPTIONS] REPLAYS...
+
+  upload replays to https://WoTinspector.com
+
+Arguments:
+  REPLAYS...  replays to upload  [required]
+
+Options:
+  --force                   force upload even JSON file exists
+  --private / --no-private  upload replays as private without listing those
+                            publicly (default=False)
+  --wi-rate-limit FLOAT     rate-limit for WoTinspector.com
+  --wi-auth-token TEXT      authentication token for WoTinsepctor.com
+  --help                    Show this message and exit.
+
+```
+### `blitz-replays analyze` usage
+
+```
+Usage: blitz-replays analyze [OPTIONS] COMMAND [ARGS]...
+
+  analyze replays
+
+Options:
+  --analyze-config TEXT           TOML config file for 'analyze' reports
+  --stats-type [player|tier|tank]
+                                  stats to use for player stats
+  --fields TEXT                   set report fields, combine field modes with
+                                  '+'
+  --reports TEXT                  reports to create. use '+' to add extra
+                                  reports
+  --player INTEGER                player to analyze (WG account_id), default:
+                                  player who recorded the replay
+  --help                          Show this message and exit.
+
+Commands:
+  files  analyze replays from JSON files
+  info   Information of available for analysis
+
+```
+### `blitz-replays analyze files` usage
+
+```
+Usage: blitz-replays analyze files [OPTIONS] REPLAYS...
+
+  analyze replays from JSON files
+
+Arguments:
+  REPLAYS...  replays to upload  [required]
+
+Options:
+  --wg-app-id TEXT                WG app ID
+  --wg-region [ru|eu|com|asia|china|BOTS]
+                                  WG API region (default: eu)
+  --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
+  --export / --no-export          export reports to a Tab-delimited text file
+                                  [default: no-export]
+  --export-fn PATH                file to export to  [default: export.txt]
+  --help                          Show this message and exit.
+
+```
+### `blitz-replays analyze info` usage
+
+```
+Usage: blitz-replays analyze info [OPTIONS] COMMAND [ARGS]...
+
+  Information of available for analysis
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  fields   List configured report fields
+  filters  List available player filters
+  metrics  List available field types / metrics
+  replay   List available fields in replays
+  reports  List configured reports
+
+```
+## `blitz-data` usage
+
+```
+Usage: blitz-data [OPTIONS] COMMAND [ARGS]...
+
+  CLI app to extract WoT Blitz tankopedia and maps for other tools
+
+Options:
+  -v, --verbose         verbose logging
+  --debug               debug logging
+  --force / --no-force  Overwrite instead of updating data
+  --config FILE         read config from FILE  [default:
+                        /home/jarno/.config/blitzstats/config]
+  --log FILE            log to FILE
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or
+                        customize the installation.
+  --help                Show this message and exit.
+
+Commands:
+  maps        extract maps data into a JSON file
+  tankopedia  extract tankopedia as JSON file for other tools
+
+```
+### `blitz-data tankopedia` usage
+
+```
+Usage: blitz-data tankopedia [OPTIONS] COMMAND [ARGS]...
+
+  extract tankopedia as JSON file for other tools
+
+Options:
+  --outfile FILE  Write Tankopedia to FILE
+  --help          Show this message and exit.
+
+Commands:
+  app   extract Tankopedia from Blitz game files
+  file  Read tankopedia from a file
+  wg    get Tankopedia from WG API
+
+```
+### `blitz-data tankopedia wg` usage
+
+```
+Usage: blitz-data tankopedia wg [OPTIONS]
+
+  get Tankopedia from WG API
+
+Options:
+  --wg-app-id TEXT                WG app ID
+  --wg-region [ru|eu|com|asia|china|BOTS]
+                                  WG API region (default: eu)
+  --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
+  --help                          Show this message and exit.
+
+```
+### `blitz-data tankopedia app` usage
+
+```
+Usage: blitz-data tankopedia app [OPTIONS] [BLITZ_APP_DIR]
+
+  extract Tankopedia from Blitz game files
+
+Arguments:
+  [BLITZ_APP_DIR]  Blitz game files directory
+
+Options:
+  --wg-app-id TEXT           WG app ID
+  --wg-region [eu|asia|com]  WG API region
+  --help                     Show this message and exit.
+
+```
+### `blitz-data maps` usage
+
+```
+Usage: blitz-data maps [OPTIONS] COMMAND [ARGS]...
+
+  extract maps data into a JSON file
+
+Options:
+  --outfile FILE  Write maps to FILE
+  --help          Show this message and exit.
+
+Commands:
+  app   Read maps data from game files
+  file  Read maps data from a JSON file
+  list  list maps from a JSON file
+
+```
+### `blitz-data maps app` usage
+
+```
+Usage: blitz-data maps app [OPTIONS] [BLITZ_APP_DIR]
+
+  Read maps data from game files
+
+Arguments:
+  [BLITZ_APP_DIR]  Blitz game files directory
+
+Options:
+  --help  Show this message and exit.
+
+```
+
