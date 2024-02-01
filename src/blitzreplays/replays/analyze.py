@@ -82,7 +82,6 @@ def callback_paths(value: Optional[list[Path]]) -> list[Path]:
     return value if value is not None else []
 
 
-# TODO: add --export TSV export
 @app.callback()
 def analyze(
     ctx: Context,
