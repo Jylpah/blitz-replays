@@ -35,7 +35,7 @@ BATTLE CLASS
 Mastery            1  100.00%   3203   4       1     0%          2.89  100%     47.3%        50.1%
 ```
 
-## Status
+# Status
 
 Works and tested on Windows, Mac and Linux. Requires [Python 3.11](https://python.org/) or later. 
 
@@ -45,12 +45,12 @@ Works and tested on Windows, Mac and Linux. Requires [Python 3.11](https://pytho
 - [x] `analyze`: Replay analysis fully functional
 - [ ] `parse`: Parsing replays client-side
 
-### `blitz-data`:
+### blitz-data:
 
 - [x] `tankopedia`: Extraction of Tankopedia from game files or WG API
 - [x] `maps`: Extraction of maps from game files
 
-### TODO
+## TODO
 
 - [ ] API cache for `blitz-replays analyze` to make consequtive analysis faster. Especially useful for `--stats-type tank | tier` which use a different (an 100x slower) API endpoint than `--stats-type player` 
 - [ ] `parse`: Parsing replays client-side. This is a bigger task. Let's see when I can find time for this. 
@@ -61,7 +61,7 @@ Works and tested on Windows, Mac and Linux. Requires [Python 3.11](https://pytho
 - [x] Support for custom report/field config with `blitz-replays analyze --analyze-config` 
 - [x] Help texts for field metric types, filter types and ~~field formats~~ for `blitz-replays analyze info`
 
-## Install 
+# Install 
 
 You need [Python 3.11](https://python.org/) or later installed. 
 
@@ -75,7 +75,7 @@ pip install git+https://github.com/Jylpah/blitz-replays.git
 pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
 ```
 
-# Configuration
+## Configuration
 
 `blitz-replays analyze` provides a set of reports (tables) and fields (columns) by default. You can add your own reports and fields with `--analyze-config YOUR_CONFIG_FILE.toml`. The analyze config is a [TOML 1.0](https://toml.io/) format file. See examples and inspiration from the [in-built config file](https://github.com/Jylpah/blitz-replays/blob/main/src/blitzreplays/replays/config.toml).
 
