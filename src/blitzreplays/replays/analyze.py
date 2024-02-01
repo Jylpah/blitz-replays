@@ -43,16 +43,11 @@ from .cache import (
     StatsType,
 )
 
-from .analyze_reports import (
-    app as reports_app,
-    read_analyze_reports,
-)
-from .analyze_fields import app as fields_app, read_analyze_fields
+from .analyze_info import app as info_app, read_analyze_fields, read_analyze_reports
 
 app = AsyncTyper()
 
-app.add_typer(reports_app, name="reports")
-app.add_typer(fields_app, name="fields")
+app.add_typer(info_app, name="info")
 
 logger = logging.getLogger()
 error = logger.error
@@ -82,7 +77,6 @@ def callback_paths(value: Optional[list[Path]]) -> list[Path]:
     return value if value is not None else []
 
 
-# TODO: add --export TSV export
 @app.callback()
 def analyze(
     ctx: Context,

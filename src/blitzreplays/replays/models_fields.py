@@ -340,6 +340,10 @@ class Fields:
 
 @dataclass
 class CountField(ReportField):
+    """
+    Count total number of matching replays
+    """
+
     metric = "count"
     fields = "exp"
 
@@ -359,6 +363,10 @@ Fields.register(CountField)
 
 @dataclass
 class SumField(ReportField):
+    """
+    Sum a replay field value over matching replays
+    """
+
     metric = "sum"
 
     # def __post_init__(self: Self) -> None:
@@ -398,6 +406,10 @@ Fields.register(SumField)
 
 @dataclass
 class AverageField(SumField):
+    """
+    Calculate an average of field values in matching replays
+    """
+
     metric = "average"
 
     def calc(self, replay: EnrichedReplay) -> ValueStore:
@@ -435,6 +447,10 @@ CmpOps = Literal["eq", "gt", "lt", "gte", "lte"]
 
 @dataclass
 class AverageIfField(SumField):
+    """
+    Calculate an average of field values with a =,>,< condition in matching replays
+    """
+
     metric = "average_if"
 
     _if_value: float = 1
@@ -514,7 +530,7 @@ Fields.register(AverageIfField)
 @dataclass
 class MinField(ReportField):
     """
-    Field for finding min value
+    Find a field's minimum value over replays
     """
 
     metric = "min"
@@ -547,7 +563,7 @@ Fields.register(MinField)
 @dataclass
 class MaxField(ReportField):
     """
-    Field for finding max value
+    Find a field's maximum value over replays
     """
 
     metric = "max"
@@ -575,6 +591,10 @@ Fields.register(MaxField)
 
 @dataclass
 class RatioField(SumField):
+    """
+    Calculate a ratio between two fields over matching replays
+    """
+
     metric = "ratio"
 
     _value_field: str = ""

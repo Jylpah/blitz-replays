@@ -11,7 +11,8 @@ import tomlkit
 from pyutils import AsyncTyper
 
 from .models_fields import Fields, ReportField
-from .args import read_param_list
+from .models_reports import Reports
+from .args import read_param_list, EnumTeamFilter, EnumGroupFilter
 
 
 logger = logging.getLogger()
@@ -28,16 +29,16 @@ FieldMetric = Enum("FieldMetric", dict(zip(metrics, metrics)))  # type: ignore
 
 
 @app.callback()
-def fields():
+def info():
     """
-    Report field config
+    Information of available for analysis
     """
 
 
-@app.command("list")
-def fields_list(ctx: Context):
+@app.command("fields")
+def info_list(ctx: Context):
     """
-    List configured fields
+    List configured report fields
     """
     field_store: Fields = ctx.obj["fields"]
     fields_param: str | None = ctx.obj["fields_param"]
@@ -46,7 +47,7 @@ def fields_list(ctx: Context):
     doc: TOMLDocument = tomlkit.document()
     doc.add("FIELDS", field_store.get_toml_field_sets())
     typer.echo()
-    typer.echo("Configured options for --fields FIELD_SET")
+    typer.echo("Configured options for --fields FIELD_SET:")
     typer.echo()
     typer.echo(tomlkit.dumps(doc))
     typer.echo()
@@ -57,24 +58,112 @@ def fields_list(ctx: Context):
     typer.echo(tomlkit.dumps(doc))
 
 
-@app.command("available")
-def fields_available():
+@app.command("metrics")
+def info_metrics():
     """
-    List available replay fields
+    List available field types / metrics
     """
     typer.echo()
-    typer.echo("Available main fields replays")
+    typer.echo("Available report field types:")
+    typer.echo()
+    for field_type in Fields.registry.values():
+        typer.echo(f"\tmetric={field_type.metric:<16}\t{field_type.__doc__.strip()}")
+        typer.echo()
+
+
+@app.command("filters")
+def info_filters():
+    """
+    List available player filters
+    """
+    typer.echo()
+    typer.echo("FIELD 'filter' filters replay players to include in FIELD calculations")
+    typer.echo()
+    typer.echo("Format: filter=team_filter:group_filter")
+    typer.echo()
+    typer.echo("Available 'team_filter' values:")
+    typer.echo()
+    for team_filter in EnumTeamFilter:
+        typer.echo(f"\t{team_filter.value}")
+    typer.echo()
+    typer.echo("Available 'group_filter' values:")
+    typer.echo()
+    for group_filter in EnumGroupFilter:
+        typer.echo(f"\t{group_filter.value}")
+    typer.echo()
+
+
+@app.command("replay")
+def info_replay():
+    """
+    List available fields in replays
+    """
+    typer.echo()
+    typer.echo("Available main fields replays:")
     typer.echo()
     for field in sorted(ReportField._replay_fields):
         typer.echo(f"\t{field}")
 
     typer.echo()
-    typer.echo("Available player fields in replays")
+    typer.echo("Available player fields in replays:")
     typer.echo()
 
     for field in sorted(ReportField._player_fields):
         typer.echo(f"\t{field}")
     typer.echo()
+
+
+@app.command("reports")
+def info_reports(ctx: Context):
+    """
+    List configured reports
+    """
+    reports: Reports = ctx.obj["reports"]
+    reports_param: str | None = ctx.obj["reports_param"]
+    if reports_param is not None:
+        reports = reports.with_config(read_param_list(reports_param))
+    doc: TOMLDocument = tomlkit.document()
+    doc.add("REPORTS", reports.get_toml_report_sets())
+    typer.echo()
+    typer.echo("Configured options for --reports REPORT_SET")
+    typer.echo()
+    typer.echo(tomlkit.dumps(doc))
+    typer.echo()
+    doc = tomlkit.document()
+    doc.add("REPORT", reports.get_toml())
+    typer.echo("Configured reports:")
+    typer.echo()
+    typer.echo(tomlkit.dumps(doc))
+
+
+def read_analyze_reports(config: TOMLDocument) -> Result[Reports, str]:
+    """
+    read REPORT config from analyze TOML config
+    """
+    try:
+        toml_item: TOMLItem | None = None
+        report_store = Reports()
+
+        if "REPORTS" in config and isinstance(
+            toml_item := config.item("REPORTS"), TOMLTable
+        ):
+            for key, report_set in toml_item.items():
+                report_store.add_report_set(key, report_set)
+        else:
+            debug("'REPORTS' is not defined in analyze_config")
+
+        if "REPORT" in config and isinstance(
+            toml_item := config.item("REPORT"), TOMLTable
+        ):
+            for key, rpt in toml_item.items():
+                report_store.add(key=key, **rpt)
+        else:
+            debug("'REPORT' is not defined in analyze_config")
+
+        return Ok(report_store)
+
+    except Exception as err:
+        return Err(str(err))
 
 
 # @app.async_command("add")
