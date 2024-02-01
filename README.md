@@ -5,7 +5,7 @@
 Set of command line tools to upload and analyze WoT Blitz replays. 
 
 * `blitz-replays`: upload and analyze Blitz replays
-* `blitz-data`: extract game metadata (maps and tankopedia) required by `blitz-replays` 
+* `blitz-data`: extract updated game metadata (maps and tankopedia) for `blitz-replays` 
 
 ## Example
 
@@ -37,13 +37,29 @@ Mastery            1  100.00%   3203   4       1     0%          2.89  100%     
 
 ## Status
 
-- [x] `blitz-data`:
-  - [x] `tankopedia`: Extraction of Tankopedia from game files or WG API
-  - [x] `maps`: Extraction of maps from game files
-- [x] `blitz-replays`:
-  - [x] `upload`: Replay upload
-  - [x] `analyze`: Replay analysis: First functional WIP version
-  - [ ] `parse`: Parsing replays client-side
+Works and tested on Windows, Mac and Linux. Requires [Python 3.11](https://python.org/) or later. 
+
+### blitz-replays
+
+- [x] `upload`: Replay upload to [replays.wotinspector.com](https://replays.wotinspector.com)
+- [x] `analyze`: Replay analysis fully functional
+- [ ] `parse`: Parsing replays client-side
+
+### `blitz-data`:
+
+- [x] `tankopedia`: Extraction of Tankopedia from game files or WG API
+- [x] `maps`: Extraction of maps from game files
+
+### TODO
+
+- [ ] API cache for `blitz-replays analyze` to make consequtive analysis faster. Especially useful for `--stats-type tank | tier` which use a different (an 100x slower) API endpoint than `--stats-type player` 
+- [ ] Help texts for field metric types, filter types and field formats for `blitz-replays analyze fields`
+- [ ] `parse`: Parsing replays client-side. This is a bigger task. Let's see when I can find time for this. 
+
+### Done
+
+- [x] Export reports to a tab-separated text file that can be opened with Excel for further analysis with `blitz-replays analyze --export`
+- [x] Support for custom report/field config with `blitz-replays analyze --analyze-config` 
 
 ## Install 
 
@@ -65,6 +81,114 @@ pip install --upgrade git+https://github.com/Jylpah/blitz-replays.git
 
 # Usage
 
+## `blitz-replays` usage
+
+```
+Usage: blitz-replays [OPTIONS] COMMAND [ARGS]...
+
+  CLI app to upload WoT Blitz replays
+
+Options:
+  -v, --verbose         verbose logging
+  --debug               debug logging
+  --force / --no-force  Overwrite instead of updating data
+  --config FILE         read config from FILE  [default:
+                        /home/jarno/.config/blitzstats/config]
+  --log FILE            log to FILE
+  --tankopedia FILE     tankopedia JSON file
+  --maps FILE           maps JSON file
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or
+                        customize the installation.
+  --help                Show this message and exit.
+
+Commands:
+  analyze  analyze replays
+  upload   upload replays to https://WoTinspector.com
+
+```
+### `blitz-replays upload` usage
+
+```
+Usage: blitz-replays upload [OPTIONS] REPLAYS...
+
+  upload replays to https://WoTinspector.com
+
+Arguments:
+  REPLAYS...  replays to upload  [required]
+
+Options:
+  --force                   force upload even JSON file exists
+  --private / --no-private  upload replays as private without listing those
+                            publicly (default=False)
+  --wi-rate-limit FLOAT     rate-limit for WoTinspector.com
+  --wi-auth-token TEXT      authentication token for WoTinsepctor.com
+  --help                    Show this message and exit.
+
+```
+### `blitz-replays analyze` usage
+
+```
+Usage: blitz-replays analyze [OPTIONS] COMMAND [ARGS]...
+
+  analyze replays
+
+Options:
+  --analyze-config TEXT           TOML config file for 'analyze' reports
+  --stats-type [player|tier|tank]
+                                  stats to use for player stats
+  --fields TEXT                   set report fields, combine field modes with
+                                  '+'
+  --reports TEXT                  reports to create. use '+' to add extra
+                                  reports
+  --player INTEGER                player to analyze (WG account_id), default:
+                                  player who recorded the replay
+  --help                          Show this message and exit.
+
+Commands:
+  files  analyze replays from JSON files
+  info   Information of available for analysis
+
+```
+### `blitz-replays analyze files` usage
+
+```
+Usage: blitz-replays analyze files [OPTIONS] REPLAYS...
+
+  analyze replays from JSON files
+
+Arguments:
+  REPLAYS...  replays to upload  [required]
+
+Options:
+  --wg-app-id TEXT                WG app ID
+  --wg-region [ru|eu|com|asia|china|BOTS]
+                                  WG API region (default: eu)
+  --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
+  --export / --no-export          export reports to a Tab-delimited text file
+                                  [default: no-export]
+  --export-fn PATH                file to export to  [default: export.txt]
+  --help                          Show this message and exit.
+
+```
+### `blitz-replays analyze info` usage
+
+```
+Usage: blitz-replays analyze info [OPTIONS] COMMAND [ARGS]...
+
+  Information of available for analysis
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  fields   List configured report fields
+  filters  List available player filters
+  metrics  List available field types / metrics
+  replay   List available fields in replays
+  reports  List configured reports
+
+```
 ## `blitz-data` usage
 
 ```
@@ -166,97 +290,6 @@ Arguments:
 
 Options:
   --help  Show this message and exit.
-
-```
-## `blitz-replays` usage
-
-```
-Usage: blitz-replays [OPTIONS] COMMAND [ARGS]...
-
-  CLI app to upload WoT Blitz replays
-
-Options:
-  -v, --verbose         verbose logging
-  --debug               debug logging
-  --force / --no-force  Overwrite instead of updating data
-  --config FILE         read config from FILE  [default:
-                        /home/jarno/.config/blitzstats/config]
-  --log FILE            log to FILE
-  --tankopedia FILE     tankopedia JSON file
-  --maps FILE           maps JSON file
-  --install-completion  Install completion for the current shell.
-  --show-completion     Show completion for the current shell, to copy it or
-                        customize the installation.
-  --help                Show this message and exit.
-
-Commands:
-  analyze  analyze replays
-  upload   upload replays to https://WoTinspector.com
-
-```
-### `blitz-replays upload` usage
-
-```
-Usage: blitz-replays upload [OPTIONS] REPLAYS...
-
-  upload replays to https://WoTinspector.com
-
-Arguments:
-  REPLAYS...  replays to upload  [required]
-
-Options:
-  --force                   force upload even JSON file exists
-  --private / --no-private  upload replays as private without listing those
-                            publicly (default=False)
-  --wi-rate-limit FLOAT     rate-limit for WoTinspector.com
-  --wi-auth-token TEXT      authentication token for WoTinsepctor.com
-  --help                    Show this message and exit.
-
-```
-### `blitz-replays analyze` usage
-
-```
-Usage: blitz-replays analyze [OPTIONS] COMMAND [ARGS]...
-
-  analyze replays
-
-Options:
-  --analyze-config TEXT           TOML config file for 'analyze' reports
-  --stats-type [player|tier|tank]
-                                  stats to use for player stats
-  --fields TEXT                   set report fields, combine field modes with
-                                  '+'
-  --reports TEXT                  reports to create. use '+' to add extra
-                                  reports
-  --player INTEGER                player to analyze (WG account_id), default:
-                                  player who recorded the replay
-  --help                          Show this message and exit.
-
-Commands:
-  fields   Report field config
-  files    analyze replays from JSON files
-  reports  Report table config
-
-```
-### `blitz-replays analyze files` usage
-
-```
-Usage: blitz-replays analyze files [OPTIONS] REPLAYS...
-
-  analyze replays from JSON files
-
-Arguments:
-  REPLAYS...  replays to upload  [required]
-
-Options:
-  --wg-app-id TEXT                WG app ID
-  --wg-region [ru|eu|com|asia|china|BOTS]
-                                  WG API region (default: eu)
-  --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
-  --export / --no-export          export reports to a Tab-delimited text file
-                                  [default: no-export]
-  --export-fn PATH                file to export to  [default: export.txt]
-  --help                          Show this message and exit.
 
 ```
 
