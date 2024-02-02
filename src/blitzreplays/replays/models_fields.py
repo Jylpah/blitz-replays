@@ -667,3 +667,78 @@ class RatioField(SumField):
 
 
 Fields.register(RatioField)
+
+
+@dataclass
+class DiffField(SumField):
+    """
+    Calculate a difference of averages between two player groups over matching replays
+    """
+
+    metric = "difference"
+
+    filter2: str = "- NOT DEFINED -"
+
+    _filter2: PlayerFilter | None = None
+
+    def __post_init__(self):
+        debug(f"called: {type(self)}")
+        super().__post_init__()
+        try:
+            self._filter2 = PlayerFilter.from_str(self.filter2)
+            if self.filter is None:
+                raise ValueError(f"'filter' not defined for FIELD {self.name}")
+            if self._filter2 is None:
+                raise ValueError(f"'filter2' not defined for FIELD {self.name}")
+        except Exception as err:
+            error(f"FIELD '{self.key}' has invalid field config: {err}")
+            raise
+
+    def calc(self, replay: EnrichedReplay) -> ValueStore:
+        val1: float = 0
+        val2: float = 0
+        i: int = 0
+
+        if self.filter is None:
+            raise ValueError(f"FIELD={self.key}: 'filter' is not defined")
+        if self._filter2 is None:
+            raise ValueError(f"FIELD={self.key}: 'filter2' is not defined")
+
+        try:
+            for p in replay.get_players(self.filter):
+                try:
+                    val1 += getattr(replay.players_dict[p], self._field)
+                    i += 1
+                except AttributeError as err:
+                    debug(
+                        f"not attribute 'players_data.{self._field}' (account_id={p}) found in replay: {replay.title}'"
+                    )
+                    error(err)
+
+            val1 = val1 / i
+
+            i = 0
+            for p in replay.get_players(self._filter2):
+                try:
+                    val2 += getattr(replay.players_dict[p], self._field)
+                    i += 1
+                except AttributeError as err:
+                    debug(
+                        f"not attribute 'players_data.{self._field}' (account_id={p}) found in replay: {replay.title}'"
+                    )
+                    error(err)
+            val2 = val2 / i
+
+            return ValueStore(val1 - val2, 1)
+        except ZeroDivisionError:
+            debug(f"{replay.title_uniq}: divide by zero")
+        return ValueStore(0, 0)
+
+    def value(self, value: ValueStore) -> float:
+        if value.n > 0:
+            return value.value / value.n
+        else:
+            return inf
+
+
+Fields.register(DiffField)
