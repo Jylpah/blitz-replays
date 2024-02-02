@@ -1,6 +1,6 @@
 [FIELDS]
 default = ["battles", "WR", "avg_dmg", "avg_kills", "spot_rate", "top_tier", "DR", "allies_wr", "enemies_wr"]
-extra = ["survival", "allied_platoon_wr", "enemy_platoon_wr", "allies_avg_dmg", "enemies_avg_dmg"]
+extra = ["wr_diff", "survival", "allied_platoon_wr", "enemy_platoon_wr", "allies_avg_dmg", "enemies_avg_dmg"]
 
 [FIELD.battles]
 name = "Battles"
@@ -69,6 +69,15 @@ filter = "enemies:default"
 metric = "average"
 fields = "player.wr"
 format = ".1%"
+
+[FIELD.wr_diff]
+name = "WR diff"
+metric = "difference"
+filter = "allies:default"
+filter2 = "enemies:default"
+fields = "player.wr"
+format = ".1%"
+
 
 [FIELD.allied_platoon_wr]
 name = "A Plat WR"
