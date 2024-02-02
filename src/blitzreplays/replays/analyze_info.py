@@ -28,11 +28,13 @@ metrics = list(Fields.registry.keys())
 FieldMetric = Enum("FieldMetric", dict(zip(metrics, metrics)))  # type: ignore
 
 
-@app.callback()
-def info():
+@app.callback(invoke_without_command=True)
+def info(ctx: Context):
     """
     Information of available for analysis
     """
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
 
 
 @app.command("fields")
