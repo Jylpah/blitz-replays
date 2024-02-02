@@ -57,9 +57,10 @@ Works and tested on Windows, Mac and Linux. Requires [Python 3.11](https://pytho
 
 ### Done
 
+- [x] New FIELD type `metric="difference"` that calculates an average difference of a field value between two player groups defined by `filter` and `filter2`
 - [x] Export reports to a tab-separated text file that can be opened with Excel for further analysis with `blitz-replays analyze --export`
 - [x] Support for custom report/field config with `blitz-replays analyze --analyze-config` 
-- [x] Help texts for field metric types, filter types and ~~field formats~~ for `blitz-replays analyze info`
+- [x] Help texts for field metric types, filter types, fields, reports and ~~field formats~~ for `blitz-replays analyze info`
 
 # Install 
 
@@ -91,7 +92,6 @@ Usage: blitz-replays [OPTIONS] COMMAND [ARGS]...
 Options:
   -v, --verbose         verbose logging
   --debug               debug logging
-  --force / --no-force  Overwrite instead of updating data
   --config FILE         read config from FILE  [default:
                         /home/jarno/.config/blitzstats/config]
   --log FILE            log to FILE
@@ -118,7 +118,7 @@ Arguments:
   REPLAYS...  replays to upload  [required]
 
 Options:
-  --force                   force upload even JSON file exists
+  --force / --no-force      force upload even JSON file exists
   --private / --no-private  upload replays as private without listing those
                             publicly (default=False)
   --wi-rate-limit FLOAT     rate-limit for WoTinspector.com
@@ -167,7 +167,7 @@ Options:
   --wg-rate-limit FLOAT           WG API rate limit, default=10/sec
   --export / --no-export          export reports to a Tab-delimited text file
                                   [default: no-export]
-  --export-fn PATH                file to export to  [default: export.txt]
+  --filename PATH                 file to export to  [default: export.txt]
   --help                          Show this message and exit.
 
 ```
