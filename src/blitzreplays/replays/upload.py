@@ -48,7 +48,6 @@ async def upload(
     force: Annotated[
         Optional[bool],
         typer.Option(
-            "--force",
             show_default=False,
             is_flag=True,
             flag_value=True,
@@ -63,10 +62,12 @@ async def upload(
         ),
     ] = None,
     wi_rate_limit: Annotated[
-        Optional[float], typer.Option(help="rate-limit for WoTinspector.com")
+        Optional[float],
+        typer.Option(help="rate-limit for WoTinspector.com"),
     ] = None,
     wi_auth_token: Annotated[
-        Optional[str], typer.Option(help="authentication token for WoTinsepctor.com")
+        Optional[str],
+        typer.Option(help="authentication token for WoTinsepctor.com"),
     ] = None,
     replays: List[Path] = typer.Argument(
         help="replays to upload", callback=callback_paths

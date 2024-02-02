@@ -73,10 +73,10 @@ def cli(
             help="debug logging",
         ),
     ] = False,
-    force: Annotated[
-        bool,
-        typer.Option(show_default=False, help="Overwrite instead of updating data"),
-    ] = False,
+    # force: Annotated[
+    #     bool,
+    #     typer.Option(show_default=False, help="Overwrite instead of updating data"),
+    # ] = False,
     config_file: Annotated[
         Optional[Path],
         typer.Option("--config", help="read config from FILE", metavar="FILE"),
@@ -163,7 +163,7 @@ def cli(
         raise typer.Exit(code=5)
 
     ctx.obj["config"] = config
-    ctx.obj["force"] = force
+    # ctx.obj["force"] = force
 
 
 ########################################################

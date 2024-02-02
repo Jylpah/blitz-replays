@@ -451,6 +451,7 @@ class StrCategorization(Categorization):
 Reports.register(StrCategorization)
 
 
+# TODO: could bucket categorization support any field value (metric, filter, etc) for categorization?
 class BucketCategorization(Categorization):
     """
     "allies_battles": [
