@@ -103,7 +103,6 @@ def analyze(
     player: Annotated[
         Optional[int],
         Option(
-            "--player",
             show_default=False,
             help="player to analyze (WG account_id), default: player who recorded the replay",
         ),
@@ -223,7 +222,9 @@ async def files(
     export: Annotated[
         bool, Option(help="export reports to a Tab-delimited text file")
     ] = False,
-    export_fn: Annotated[Path, Option(help="file to export to")] = Path("export.txt"),
+    export_fn: Annotated[Path, Option("--filename", help="file to export to")] = Path(
+        "export.txt"
+    ),
     replays: List[Path] = Argument(help="replays to upload", callback=callback_paths),
 ) -> None:
     """
