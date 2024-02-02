@@ -38,7 +38,7 @@ def info(ctx: Context):
 
 
 @app.command("fields")
-def info_list(ctx: Context):
+def info_fields(ctx: Context):
     """
     List configured report fields
     """
@@ -61,7 +61,7 @@ def info_list(ctx: Context):
 
 
 @app.command("metrics")
-def info_metrics():
+def info_metrics() -> None:
     """
     List available field types / metrics
     """
@@ -69,7 +69,11 @@ def info_metrics():
     typer.echo("Available report field types:")
     typer.echo()
     for field_type in Fields.registry.values():
-        typer.echo(f"\tmetric={field_type.metric:<16}\t{field_type.__doc__.strip()}")
+        if field_type.__doc__ is None:
+            raise ValueError(f"No docstring defined for {field_type}")
+
+        metric: str = f'"{field_type.metric}"'
+        typer.echo(f"\tmetric={metric:<16}\t{field_type.__doc__.strip()}")
         typer.echo()
 
 
@@ -81,7 +85,7 @@ def info_filters():
     typer.echo()
     typer.echo("FIELD 'filter' filters replay players to include in FIELD calculations")
     typer.echo()
-    typer.echo("Format: filter=team_filter:group_filter")
+    typer.echo('Format: filter="team_filter:group_filter"')
     typer.echo()
     typer.echo("Available 'team_filter' values:")
     typer.echo()
