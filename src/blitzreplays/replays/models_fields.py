@@ -235,9 +235,10 @@ class Fields:
         key: FieldKey,
         name: str,
         metric: str,
-        fields: str,
-        format: str,
+        # fields: str,
+        # format: str,
         filter: str | None = None,
+        **kwargs,
     ) -> ReportField:
         """Create a Field from specification
 
@@ -257,16 +258,17 @@ class Fields:
                 raise ValueError(f"unsupported metric: {metric}")
 
             field = field_type(
-                key=key, name=name, filter=player_filter, fields=fields, format=format
+                key=key,
+                name=name,
+                filter=player_filter,
+                **kwargs,
             )
 
             if key not in self.db:
                 self.db[key] = field
             return self.db[key]
         except Exception as err:
-            error(
-                f"could not create metric: metric={metric}, filter={filter}, fields={fields}"
-            )
+            error(f"could not create metric: metric={metric}, filter={filter}")
             error(err)
             raise err
 
