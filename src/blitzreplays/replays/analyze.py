@@ -77,6 +77,7 @@ def callback_paths(value: Optional[list[Path]]) -> list[Path]:
     return value if value is not None else []
 
 
+# TODO: add --filter: a way to filter replays based on criterias
 @app.callback()
 def analyze(
     ctx: Context,
