@@ -145,6 +145,20 @@ def test_1_blitzreplays_upload(
         (["--stats-type", "player", "files", "--export"]),
         (["--stats-type", "tier", "files"]),
         (["--stats-type", "tank", "files"]),
+        (["--fields", "+extra", "files"]),
+        (["--player", "521458531", "files"]),
+        (["--reports", "extra", "files"]),
+        (
+            [
+                "--reports",
+                "+extra,tank",
+                "--fields",
+                "+extra",
+                "files",
+                "--wg-rate-limit",
+                "10",
+            ]
+        ),
     ],
 )
 @REPLAY_ANALYZE_FILES
@@ -159,38 +173,38 @@ def test_2_blitzreplays_analyze_files(
     assert result.exit_code == 0, f"blitzreplays analyze failed: {result.output}"
 
 
-@pytest.mark.parametrize(
-    "args",
-    [
-        (["--fields", "+extra,tank", "files"]),
-        (["--player", "521458531", "files"]),
-        (["--reports", "extra", "files"]),
-        (
-            [
-                "--reports",
-                "+extra",
-                "--fields",
-                "+extra",
-                "files",
-                "--wg-rate-limit",
-                "10",
-            ]
-        ),
-    ],
-)
-@REPLAY_ANALYZE_FILES
-def test_3_blitzreplays_analyze(
-    tmp_path: Path,
-    datafiles: Path,
-    args: List[str],
-    analyze_dir: str,
-) -> None:
-    result: Result = CliRunner().invoke(
-        app,
-        ["analyze"] + args + [str(tmp_path / analyze_dir)],
-        catch_exceptions=False,
-    )
-    assert result.exit_code == 0, f"blitzreplays analyze failed: {result.output}"
+# @pytest.mark.parametrize(
+#     "args",
+#     [
+#         (["--fields", "+extra,tank", "files"]),
+#         (["--player", "521458531", "files"]),
+#         (["--reports", "extra", "files"]),
+#         (
+#             [
+#                 "--reports",
+#                 "+extra",
+#                 "--fields",
+#                 "+extra",
+#                 "files",
+#                 "--wg-rate-limit",
+#                 "10",
+#             ]
+#         ),
+#     ],
+# )
+# @REPLAY_ANALYZE_FILES
+# def test_3_blitzreplays_analyze(
+#     tmp_path: Path,
+#     datafiles: Path,
+#     args: List[str],
+#     analyze_dir: str,
+# ) -> None:
+#     result: Result = CliRunner().invoke(
+#         app,
+#         ["analyze"] + args + [str(tmp_path / analyze_dir)],
+#         catch_exceptions=False,
+#     )
+#     assert result.exit_code == 0, f"blitzreplays analyze failed: {result.output}"
 
 
 @pytest.mark.parametrize(
@@ -214,7 +228,7 @@ def test_3_blitzreplays_analyze(
     ],
 )
 @ANALYZE_CONFIG
-def test_4_blitzreplays_analyze(
+def test_3_blitzreplays_analyze_info(
     tmp_path: Path,
     datafiles: Path,
     args: List[str],
