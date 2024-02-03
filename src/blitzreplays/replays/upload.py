@@ -103,11 +103,11 @@ async def upload(
     except KeyError as err:
         error(f"could not read all the params: {err}")
         typer.Exit(code=6)
-        assert False, "trick Mypy..."
+        raise SystemExit(6)
     except ValueError as err:
         error(f"could not set configuration option: {err}")
         typer.Exit(code=7)
-        assert False, "trick Mypy..."
+        raise SystemExit(7)
 
     WI = WoTinspector(rate_limit=wi_rate_limit, auth_token=wi_auth_token)
     stats = EventCounter("Upload replays")
@@ -154,6 +154,7 @@ async def upload(
     except Exception as err:
         error(f"{err}")
         typer.Exit(code=8)
+        raise SystemExit(8)
     finally:
         await WI.close()
 

@@ -62,6 +62,7 @@ def maps(
     except Exception as err:
         error(f"{type(err)}: {err}")
         typer.Exit(code=1)
+        raise SystemExit(1)
 
 
 ########################################################
@@ -98,9 +99,11 @@ async def app(
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
         typer.Exit(code=2)
+        raise SystemExit(2)
     except Exception as err:
         error(f"{type(err)}: {err}")
         typer.Exit(code=3)
+        raise SystemExit(3)
     assert isinstance(force, bool), f"error: 'force' is not bool: {type(force)}"
     assert (
         blitz_app_dir is not None
@@ -230,9 +233,11 @@ async def file(
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
         typer.Exit(code=1)
+        raise SystemExit(1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        typer.Exit(code=1)
+        typer.Exit(code=2)
+        raise SystemExit(2)
     if (maps := await Maps.open_json(infile)) is not None:
         await update_maps(outfile=outfile, maps=maps, force=force)
     else:
@@ -272,9 +277,11 @@ async def list(
     except configparser.Error as err:
         error(f"could not read config file: {type(err)}: {err}")
         typer.Exit(code=1)
+        raise SystemExit(1)
     except Exception as err:
         error(f"{type(err)}: {err}")
-        typer.Exit(code=1)
+        typer.Exit(code=2)
+        raise SystemExit(2)
     assert isinstance(file, Path), f"file is not type of Path(): {type(file)}"
     if (maps := await Maps.open_json(file)) is not None:
         count: int = 0
