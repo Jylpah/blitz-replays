@@ -428,10 +428,7 @@ Reports.register(NumberCategorization)
 
 class StrCategorization(Categorization):
     """
-    "player_name": ["Player", "string", 25],
-    "tank_name": ["Tank", "string", 25],
-    "map_name": ["Map", "string", 20],
-    "battle": ["Battle", "string", 40],
+    Replay categorization based on unique string values
     """
 
     categorization = "string"
@@ -454,6 +451,8 @@ Reports.register(StrCategorization)
 # TODO: could bucket categorization support any field value (metric, filter, etc) for categorization?
 class BucketCategorization(Categorization):
     """
+    Replay categorization based on replay field values divided into discrete "buckets"
+
     "allies_battles": [
             "Player Battles",
             "bucket",
@@ -506,7 +505,7 @@ class BucketCategorization(Categorization):
 
         if len(buckets) != len(bucket_labels):
             message(
-                f"check report config: the number of 'buckets' ({len(buckets)}) and 'bucket_labels' ({bucket_labels}) does not match"
+                f"check report config: the number of 'buckets' ({len(buckets)}) and 'bucket_labels' ({len(bucket_labels)    }) does not match"
             )
         debug(f"buckets={buckets}")
         debug(f"labels={bucket_labels}")
@@ -557,6 +556,60 @@ class BucketCategorization(Categorization):
 
 
 Reports.register(BucketCategorization)
+
+
+class DiffBucketCategorization(BucketCategorization):
+    """
+    Replay categorization based on replay field values' differences between two player groups
+    """
+
+    categorization = "difference_bucket"
+
+    def __init__(
+        self,
+        filter2: str,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self._filter2: PlayerFilter = PlayerFilter.from_str(filter2)
+        if self._filter is None:
+            raise ValueError("'filter' is not defined")
+
+    def get_category(self, replay: EnrichedReplay) -> Category | None:
+        try:
+            field_value: float
+            if self._filter is None:
+                raise ValueError("'filter' is not defined")
+
+            field_value = self.get_category_float(
+                replay, replay.get_players(self._filter)
+            )
+
+            field_value -= self.get_category_float(
+                replay, replay.get_players(self._filter2)
+            )
+
+            category: CategoryKey = self._buckets[field_value]
+            debug(
+                f"replay={replay.title}: field={self.category_field}, value={field_value}, category={category}"
+            )
+            return self._categories[category]
+        except AttributeError:
+            error(f"no field={self._field} found in replay: {replay.title}")
+        except KeyError as err:
+            error(f"{type(err)}: {err}")
+        return None
+
+    def get_toml(self) -> tomlkit.items.Table:
+        """
+        get TOML config of the report
+        """
+        table: tomlkit.items.Table = super().get_toml()
+        table.add("filter2", self._filter2.key)
+        return table
+
+
+Reports.register(DiffBucketCategorization)
 
 ############################################################################################
 #
