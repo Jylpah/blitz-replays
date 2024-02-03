@@ -162,7 +162,7 @@ def read_analyze_reports(config: TOMLDocument) -> Result[Reports, str]:
             toml_item := config.item("REPORT"), TOMLTable
         ):
             for key, rpt in toml_item.items():
-                report_store.add(key=key, **rpt)
+                report_store.add_report(key=key, **rpt)
         else:
             debug("'REPORT' is not defined in analyze_config")
 

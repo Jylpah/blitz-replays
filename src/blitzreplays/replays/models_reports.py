@@ -221,14 +221,14 @@ class Reports:
         self.db: Dict[str, Categorization] = dict()
         self.report_sets: Dict[str, List[str]] = dict()
 
-    def add(self, key: str, name: str, categorization: str, **kwargs):
+    def add_report(self, key: str, name: str, categorization: str, **kwargs):
         """
         Add a report
         """
         try:
             cat: Type[Categorization] = self._db[categorization]
             if key in self.db:
-                raise ValueError(f"duplicate definition of report='{key}'")
+                debug(f"new definitinon for report='{key}'")
             self.db[key] = cat(name=name, **kwargs)
         except KeyError as err:
             error(
