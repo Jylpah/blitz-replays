@@ -325,7 +325,10 @@ async def files(
                 new = accountQ.count - count
                 bar(new)
                 count += new
-                await sleep(0.5)
+                await sleep(0.1)
+            new = accountQ.count - count
+            bar(new)
+
         await accountQ.join()
         await stats.gather_stats(api_workers)
         stats_cache.fill_cache(query_cache)
