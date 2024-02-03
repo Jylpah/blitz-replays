@@ -439,7 +439,7 @@ class AverageField(SumField):
             return ValueStore(res, n)
 
     def value(self, value: ValueStore) -> float:
-        return value.value / value.n
+        return value.value / value.n if value.n > 0 else inf
 
 
 Fields.register(AverageField)
@@ -523,7 +523,7 @@ class AverageIfField(SumField):
             return ValueStore(res, n)
 
     def value(self, value: ValueStore) -> float:
-        return float(value.value / value.n)
+        return float(value.value / value.n) if value.n > 0 else inf
 
 
 Fields.register(AverageIfField)
@@ -660,10 +660,7 @@ class RatioField(SumField):
             return ValueStore(val, div)
 
     def value(self, value: ValueStore) -> float:
-        if value.n > 0:
-            return value.value / value.n
-        else:
-            return inf
+        return value.value / value.n if value.n > 0 else inf
 
 
 Fields.register(RatioField)
@@ -735,10 +732,7 @@ class DiffField(SumField):
         return ValueStore(0, 0)
 
     def value(self, value: ValueStore) -> float:
-        if value.n > 0:
-            return value.value / value.n
-        else:
-            return inf
+        return value.value / value.n if value.n > 0 else inf
 
 
 Fields.register(DiffField)
