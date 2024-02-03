@@ -136,7 +136,7 @@ def analyze(
     except KeyError as err:
         error("%s: %s", type(err), err)
         typer.Exit(code=1)
-        raise SystemExit
+        raise SystemExit(1)
 
     try:
         ctx.obj["fields_param"] = fields_param
@@ -153,12 +153,12 @@ def analyze(
                 reports, fields = res_reports.ok_value
             else:
                 error(res_reports.err_value)
-                typer.Exit(code=1)
-                raise SystemExit
+                typer.Exit(code=2)
+                raise SystemExit(2)
     except Exception as err:
         error(f"could not read default analyze: {type(err)}: {err}")
-        typer.Exit(code=1)
-        raise SystemExit
+        typer.Exit(code=3)
+        raise SystemExit(3)
 
     try:
         NO_ANALYZE_CONFIG: str = "__NO_ANALYZE_CONFIG__"
@@ -188,6 +188,7 @@ def analyze(
     except Exception as err:
         error(f"could not parse analyze TOML config file: {type(err)} {err}")
         typer.Exit(code=2)
+        raise SystemExit(2)
 
 
 # @app.async_command()
@@ -255,7 +256,7 @@ async def files(
     except KeyError as err:
         error(f"could not read all the arguments: {err}")
         typer.Exit(code=3)
-        assert False, "trick Mypy..."
+        raise SystemExit(3)
 
     stats = EventCounter("Analyze replays")
     fileQ = FileQueue(filter="*.wotbreplay.json", case_sensitive=False)
