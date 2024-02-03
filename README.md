@@ -57,7 +57,8 @@ Works and tested on Windows, Mac and Linux. Requires [Python 3.11](https://pytho
 
 ### Done
 
-- [x] New FIELD type `metric="difference"` that calculates an average difference of a field value between two player groups defined by `filter` and `filter2`
+- [x] New REPORT type `categorization="difference_bucket"` that categorizes replays based on average difference of a field values between two player groups defined by `filter` and `filter2`. Can be used to categorize replays based on average WR diffence between allies and enemies. 
+- [x] New FIELD type `metric="difference"` that calculates an average difference of a field value between two player groups defined by `filter` and `filter2`. Can be used to calculate e.g. average WR diffence between allies and enemies. 
 - [x] Export reports to a tab-separated text file that can be opened with Excel for further analysis with `blitz-replays analyze --export`
 - [x] Support for custom report/field config with `blitz-replays analyze --analyze-config` 
 - [x] Help texts for field metric types, filter types, fields, reports and ~~field formats~~ for `blitz-replays analyze info`

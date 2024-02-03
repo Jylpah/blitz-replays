@@ -110,7 +110,7 @@ format = ".0f"
 
 [REPORTS]
 default = ["total", "battle_result", "tank_tier", "mastery_badge", "avg_dmg"]
-extra = ["battle_tier", "battle_mode", "solo", "battle_duration", "map", "enemy_wr", "replay"]
+extra = ["battle_tier", "battle_mode", "solo", "battle_duration", "map", "enemy_wr", "wr_diff", "replay"]
 tank = ["tank_type", "tank_nation", "is_premium"]
 
 [REPORT.total]
@@ -209,3 +209,13 @@ bucket_labels = [" < 1 min", "1 - 2 min", "2 - 3 min", "3 - 4 min", "4 - 5 min",
 name = "Replay"
 categorization = "string"
 field = "title_uniq"
+
+
+[REPORT.wr_diff]
+name = "Team WR diff"
+categorization = "difference_bucket"
+field = "player.wr"
+filter = "allies:default"
+filter2 = "enemies:all"
+buckets = [-1, -0.05, -0.025, -0.01, 0.01, 0.025, 0.05]
+bucket_labels = [" < -5%", "-5% - -2.5%", "-2.5% - -1%", "-1% - 1%", "1% - 2.5%", "2.5 - 5%", "> 5%"]
