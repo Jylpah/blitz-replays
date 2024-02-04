@@ -59,6 +59,10 @@ def stat_key(
 
 
 class PlayerStats(JSONExportable):
+    """
+    Player's stats. Calculation depends on stats_type = player | tier | tank
+    """
+
     # stat_type: StatsType
     account_id: AccountId
     tank_id: int = 0
@@ -67,16 +71,7 @@ class PlayerStats(JSONExportable):
     wr: float = 0
     avgdmg: float = 0
     battles: int = 0
-    # tier_wr: float = 0
-    # tier_avgdmg: float = 0
-    # tier_battles: int = 0
-    # tank_wr: float = 0
-    # tank_avgdmg: float = 0
-    # tank_battles: int = 0
-
-    # @property
-    # def key(self) -> str:
-    #     return StatsCache.stat_key(self.account_id, self.tier, self.tank_id)
+    last_battle_time: int = 0
 
     model_config = ConfigDict(validate_assignment=False)
 
@@ -138,6 +133,7 @@ class PlayerStats(JSONExportable):
                     battles=ts.all.battles,
                     wr=ts.all.wins / ts.all.battles,
                     avgdmg=ts.all.damage_dealt / ts.all.battles,
+                    last_battle_time=ts.last_battle_time,
                 )
         except Exception as err:
             error("%s: %s", type(err), err)
@@ -172,6 +168,9 @@ class PlayerStats(JSONExportable):
                     res.battles = res.battles + ts.all.battles
                     res.wr = res.wr + ts.all.wins
                     res.avgdmg = res.avgdmg + ts.all.damage_dealt
+                    res.last_battle_time = max(
+                        res.last_battle_time, ts.last_battle_time
+                    )
                 except Exception as err:
                     error(f"{type(err)}: {err}")
             if res.battles > 0:
