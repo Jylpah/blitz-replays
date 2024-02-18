@@ -41,6 +41,7 @@ from .cache import (
     QueryCache,
     StatsCache,
     StatsType,
+    LastBattleTime,
 )
 
 from .analyze_info import app as info_app, read_analyze_fields, read_analyze_reports
@@ -261,7 +262,7 @@ async def files(
     stats = EventCounter("Analyze replays")
     fileQ = FileQueue(filter="*.wotbreplay.json", case_sensitive=False)
     replayQ: IterableQueue[EnrichedReplay] = IterableQueue()
-    accountQ: IterableQueue[AccountId] = IterableQueue()
+    accountQ: IterableQueue[Tuple[AccountId, LastBattleTime]] = IterableQueue()
 
     wg_api = WGApi(app_id=wg_app_id, rate_limit=wg_rate_limit, default_region=region)
     query_cache = QueryCache()
@@ -288,8 +289,9 @@ async def files(
                     )
                 )
             )
+        api_workers.append(create_task(stats_cache.query_builder(accountQ=accountQ)))
         for _ in range(WG_WORKERS):
-            api_workers.append(create_task(stats_cache.stats_worker(accountQ=accountQ)))
+            api_workers.append(create_task(stats_cache.stats_worker()))
 
         # replay: EnrichedReplay | None
         count: int = 0
@@ -435,7 +437,7 @@ async def analyze_replays(
 async def replay_read_worker(
     fileQ: FileQueue,
     replayQ: IterableQueue[EnrichedReplay],
-    accountQ: IterableQueue[AccountId],
+    accountQ: IterableQueue[Tuple[AccountId, LastBattleTime]],
     query_cache: QueryCache,
     stats_cache: StatsCache,
     tankopedia: WGApiWoTBlitzTankopedia,

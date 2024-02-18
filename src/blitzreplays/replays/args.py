@@ -5,13 +5,13 @@ from enum import StrEnum
 from dataclasses import dataclass
 from typing import (
     Self,
-    Literal,
 )
 import logging
 from re import Pattern
 import typer
 import sys
 from os import makedirs
+
 
 logger = logging.getLogger()
 error = logger.error
@@ -85,10 +85,6 @@ class EnumStatsTypes(StrEnum):
     player = "player"
     tier = "tier"
     tank = "tank"
-
-
-StatsType = Literal["player", "tier", "tank"]
-StatsMeasure = Literal["wr", "avgdmg", "battles"]
 
 
 def ask_config_file() -> Path:
