@@ -363,6 +363,9 @@ class CountField(ReportField):
 Fields.register(CountField)
 
 
+# TODO: Add ShareField: Share of battles
+
+
 @dataclass
 class SumField(ReportField):
     """
