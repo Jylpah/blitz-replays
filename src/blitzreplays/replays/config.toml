@@ -1,6 +1,7 @@
 [FIELDS]
 default = ["battles", "WR", "avg_dmg", "avg_kills", "spot_rate", "top_tier", "DR", "allies_wr", "enemies_wr"]
 extra = ["wr_diff", "survival", "allied_platoon_wr", "enemy_platoon_wr", "allies_avg_dmg", "enemies_avg_dmg"]
+team = ["battles", "WR", "avg_dmg", "allies_wr", "enemies_wr", "allies_avg_dmg", "enemies_avg_dmg", "allies_battles", "enemies_battles", "allied_platoon_wr", "enemy_platoon_wr"]
 
 [FIELD.battles]
 name = "Battles"
@@ -57,14 +58,14 @@ fields = "player.death_reason=-1"
 format = ".0%"
 
 [FIELD.allies_wr]
-name = "Allies WR"
+name = "A WR"
 filter = "allies:default"
 metric = "average"
 fields = "player.wr"
 format = ".1%"
 
 [FIELD.enemies_wr]
-name = "Enemies WR"
+name = "E WR"
 filter = "enemies:default"
 metric = "average"
 fields = "player.wr"
@@ -94,17 +95,31 @@ fields = "player.wr"
 format = ".1%"
 
 [FIELD.allies_avg_dmg]
-name = "Allies DPB"
+name = "A DPB"
 filter = "allies:default"
 metric = "average"
 fields = "player.avgdmg"
 format = ".0f"
 
 [FIELD.enemies_avg_dmg]
-name = "Enemies DPB"
+name = "E DPB"
 filter = "enemies:default"
 metric = "average"
 fields = "player.avgdmg"
+format = ".0f"
+
+[FIELD.allies_battles]
+name = "A Bttls"
+filter = "allies:default"
+metric = "average"
+fields = "player.battles"
+format = ".0f"
+
+[FIELD.enemies_battles]
+name = "E Bttls"
+filter = "enemies:default"
+metric = "average"
+fields = "player.battles"
 format = ".0f"
 
 
