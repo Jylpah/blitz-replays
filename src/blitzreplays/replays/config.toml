@@ -1,6 +1,10 @@
 [FIELDS]
-default = ["battles", "WR", "avg_dmg", "avg_kills", "spot_rate", "top_tier", "DR", "allies_wr", "enemies_wr"]
-extra = ["wr_diff", "survival", "allied_platoon_wr", "enemy_platoon_wr", "allies_avg_dmg", "enemies_avg_dmg"]
+default = ["battles", "WR", "avg_dmg", "avg_kills", "allies_wr", "enemies_wr"]
+extra = [ "spot_rate", "top_tier", "DR", "survival", "share_alive", "battle_duration"]
+team_extra = [ "allies_avg_dmg", "enemies_avg_dmg", "allies_battles", "enemies_battles"]
+team_wr = [ "allied_platoon_wr", "enemy_platoon_wr", "allied_ht_wr", "enemies_ht_wr" ]
+wr_diff =["wr_diff", "wr_diff_platoon", "wr_diff_ht", "wr_diff_mt", "wr_diff_lt", "wr_diff_td"] 
+shots  =[ "hit_rate", "pen_rate","effective_pen_rate" ]
 
 [FIELD.battles]
 name = "Battles"
@@ -49,11 +53,46 @@ metric = "ratio"
 fields = "player.damage_made/player.damage_received"
 format = ".2f"
 
+[FIELD.hit_rate]
+name = "Hit rate"
+filter = "player:default"
+metric = "ratio"
+fields = "player.shots_hit/player.shots_made"
+format = ".0%"
+
+[FIELD.pen_rate]
+name = "Pen rate"
+filter = "player:default"
+metric = "ratio"
+fields = "player.shots_pen/player.shots_hit"
+format = ".0%"
+
+
+[FIELD.effective_pen_rate]
+name = "Shots pen"
+filter = "player:default"
+metric = "ratio"
+fields = "player.shots_pen/player.shots_made"
+format = "4.0%"
+
 [FIELD.survival]
 name = "Surv%"
 filter = "player:default"
 metric = "average_if"
 fields = "player.death_reason=-1"
+format = ".0%"
+
+[FIELD.battle_duration]
+name = "Duration"
+metric = "average"
+fields = "battle_duration"
+format = ".0f"
+
+[FIELD.share_alive]
+name = "% Alive"
+filter = "player:default"
+metric = "ratio"
+fields = "player.time_alive/battle_duration"
 format = ".0%"
 
 [FIELD.allies_wr]
@@ -78,6 +117,48 @@ filter2 = "enemies:default"
 fields = "player.wr"
 format = ".1%"
 
+[FIELD.wr_diff_platoon]
+name = "Plat WR diff"
+metric = "difference"
+filter = "allies:platoon"
+filter2 = "enemies:platoon"
+fields = "player.wr"
+format = ".1%"
+
+[FIELD.wr_diff_ht]
+name = "HT WR diff"
+metric = "difference"
+filter = "allies:heavy_tank"
+filter2 = "enemies:heavy_tank"
+fields = "player.wr"
+format = ".1%"
+
+[FIELD.wr_diff_mt]
+name = "MT WR diff"
+metric = "difference"
+filter = "allies:medium_tank"
+filter2 = "enemies:medium_tank"
+fields = "player.wr"
+format = ".1%"
+
+
+[FIELD.wr_diff_lt]
+name = "LT WR diff"
+metric = "difference"
+filter = "allies:light_tank"
+filter2 = "enemies:light_tank"
+fields = "player.wr"
+format = ".1%"
+
+
+[FIELD.wr_diff_td]
+name = "TD WR diff"
+metric = "difference"
+filter = "allies:tank_destroyer"
+filter2 = "enemies:tank_destroyer"
+fields = "player.wr"
+format = ".1%"
+
 
 [FIELD.allied_platoon_wr]
 name = "A Plat WR"
@@ -94,18 +175,46 @@ fields = "player.wr"
 format = ".1%"
 
 [FIELD.allies_avg_dmg]
-name = "Allies DPB"
+name = "A DPB"
 filter = "allies:default"
 metric = "average"
 fields = "player.avgdmg"
 format = ".0f"
 
 [FIELD.enemies_avg_dmg]
-name = "Enemies DPB"
+name = "E DPB"
 filter = "enemies:default"
 metric = "average"
 fields = "player.avgdmg"
 format = ".0f"
+
+[FIELD.allies_battles]
+name = "A Bttls"
+filter = "allies:default"
+metric = "average"
+fields = "player.battles"
+format = ".0f"
+
+[FIELD.enemies_battles]
+name = "E Bttls"
+filter = "enemies:default"
+metric = "average"
+fields = "player.battles"
+format = ".0f"
+
+[FIELD.allied_ht_wr]
+name = "A HT WR"
+filter = "allies:heavy_tank"
+metric = "average"
+fields = "player.wr"
+format = ".1%"
+
+[FIELD.enemies_ht_wr]
+name = "E HT WR"
+filter = "enemies:heavy_tank"
+metric = "average"
+fields = "player.wr"
+format = ".1%"
 
 
 [REPORTS]
