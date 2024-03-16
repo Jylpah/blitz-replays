@@ -142,10 +142,12 @@ class Categorization(ABC):
             except KeyError as err:
                 error("category=%s: %s: %s", cat_key, type(err), str(err))
         debug("data=%s", str(data))
+        colalign: List[str] = ["left"] + ["right"] * len(fields)
+
         if export:
             return tabulate(data, headers=header, tablefmt="tsv")
         else:
-            return tabulate(data, headers=header)
+            return tabulate(data, headers=header, colalign=colalign)
 
     def parse_field(self, field: str) -> Tuple[str, bool]:
         """parse field and check is it a player field"""
