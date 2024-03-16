@@ -134,6 +134,7 @@ class ReportField:
             "tank_type",
             "tank_nation",
             "tank_is_premium",
+            "time_alive",
             "shots_made",
             "shots_hit",
             "shots_pen",
