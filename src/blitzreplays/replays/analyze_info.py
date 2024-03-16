@@ -37,6 +37,9 @@ def info(ctx: Context):
         typer.echo(ctx.get_help())
 
 
+# TODO: add info_field_sets() after --fields + --field-sets refactor
+
+
 @app.command("fields")
 def info_fields(ctx: Context):
     """

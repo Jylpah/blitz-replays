@@ -142,7 +142,14 @@ def test_1_blitzreplays_upload(
 @pytest.mark.parametrize(
     "args",
     [
-        (["--stats-type", "player", "files", "--export"]),
+        (
+            [
+                "--stats-type",
+                "player",
+                "files",
+                "--export",
+            ]
+        ),
         (["--stats-type", "tier", "files"]),
         (["--stats-type", "tank", "files"]),
         (["--fields", "+extra", "files"]),
@@ -167,7 +174,9 @@ def test_2_blitzreplays_analyze_files(
 ) -> None:
     result: Result = CliRunner().invoke(
         app,
-        ["analyze"] + args + [str(tmp_path / analyze_dir)],
+        ["analyze"]
+        + args
+        + ["--filename", f"{tmp_path}/export.txt", f"{tmp_path}/{analyze_dir}"],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, f"blitzreplays analyze failed: {result.output}"
