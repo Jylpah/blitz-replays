@@ -641,23 +641,35 @@ class RatioField(SumField):
             div: float = 0
 
             if not self._is_player_field_value:
-                val = getattr(replay, self._value_field)
+                try:
+                    val = getattr(replay, self._value_field)
+                except AttributeError:
+                    error(
+                        f"not attribute '{self._value_field}' found in replay: {replay.title}'"
+                    )
             if not self._is_player_field_div:
-                div = getattr(replay, self._div_field)
-            if self._is_player_field_value or self._is_player_field_div:
+                try:
+                    div = getattr(replay, self._div_field)
+                except AttributeError:
+                    error(
+                        f"not attribute '{self._div_field}' found in replay: {replay.title}'"
+                    )
+            if self._is_player_field_value:
                 for p in replay.get_players(self.filter):
                     try:
-                        if self._is_player_field_value:
-                            val += getattr(replay.players_dict[p], self._value_field)
-                        else:
-                            div += getattr(replay, self._div_field)
-                        if self._is_player_field_div:
-                            div += getattr(replay.players_dict[p], self._div_field)
-                        else:
-                            val += getattr(replay, self._value_field)
+                        val += getattr(replay.players_dict[p], self._value_field)
                     except AttributeError as err:
-                        debug(
+                        error(
                             f"not attribute 'players_data.{self._value_field}' found in replay: {replay.title}'"
+                        )
+                        error(err)
+            if self._is_player_field_div:
+                for p in replay.get_players(self.filter):
+                    try:
+                        div += getattr(replay.players_dict[p], self._div_field)
+                    except AttributeError as err:
+                        error(
+                            f"not attribute 'players_data.{self._div_field}' found in replay: {replay.title}'"
                         )
                         error(err)
 
