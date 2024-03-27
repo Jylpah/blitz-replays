@@ -320,7 +320,9 @@ class EnrichedReplay(Replay):
             elif self.battle_result == EnumBattleResult.loss:
                 self.battle_result = EnumBattleResult.win
         else:
-            return Err(f"no account_id={self.player} in the replay")
+            return Err(
+                f"no defined account_id={self.player} in the replay.\nUse '--player=0' to analyze replays for the protagonist"
+            )
 
         if self.player not in self.players_dict:
             return Err(f"account_id={self.player} is not a player in the replay")

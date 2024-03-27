@@ -258,7 +258,6 @@ async def list(
         Optional[Path],
         typer.Argument(show_default=False, dir_okay=False, help="list maps from file"),
     ] = None,
-    # TODO: Add support for MapMode
     # TODO: Might need a StrEnum() type of Enum instead of IntEnum()
     map_mode: Annotated[
         Optional[MapModeStr], typer.Option(help="list maps for of mode")
