@@ -27,7 +27,7 @@ debug = logger.debug
 #
 ##############################################
 
-WI_RATE_LIMIT: float = 1.0
+WI_RATE_LIMIT: float = 2
 WI_AUTH_TOKEN: str | None = None
 WI_WORKERS: int = 3
 
