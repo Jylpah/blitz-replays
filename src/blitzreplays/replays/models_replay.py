@@ -274,8 +274,7 @@ class EnrichedReplay(Replay):
             # message(f"replay is incomplete: {self.title}")
             return Err("replay is incomplete")
 
-        # remove tournament observe
-        # message()rs
+        # remove tournament observers
         players: List[AccountId] = list()
         for p in self.allies:
             if p in self.players_dict:
@@ -331,9 +330,8 @@ class EnrichedReplay(Replay):
 
         # set platoon mate
         player_data = self.players_dict[self.player]
-        if player_data.squad_index is not None and (
-            self.data_version < 6 or player_data.squad_index > 0
-        ):
+        # squad_index can be None if the replay is incomplete and unprocessed by WoTinspector.com
+        if player_data.squad_index is not None and player_data.squad_index > 0:
             self.solo = False
             plat_id: int = player_data.squad_index
             for player in self.allies:
