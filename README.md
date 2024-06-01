@@ -52,6 +52,7 @@ Works and tested on Windows, Mac and Linux. Requires [Python 3.11](https://pytho
 
 ## TODO
 
+- [ ] `--filter` option to filter replays based on criteria
 - [ ] API cache for `blitz-replays analyze` to make consequtive analysis faster. Especially useful for `--stats-type tank | tier` which use a different (an 100x slower) API endpoint than `--stats-type player` 
 - [ ] `parse`: Parsing replays client-side. This is a bigger task. Let's see when I can find time for this. 
 
