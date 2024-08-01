@@ -88,7 +88,7 @@ class PlayerStatsDict(JSONExportableRootDict[AccountId, PlayerStat]):
         cls, api_stats: WGApiWoTBlitzAccountInfo
     ) -> "PlayerStatsDict":
         res = cls()
-        account_info = AccountInfo | None
+        account_info: AccountInfo | None
         if api_stats.data is not None:
             try:
                 for account_id, account_info in api_stats.data.items():
