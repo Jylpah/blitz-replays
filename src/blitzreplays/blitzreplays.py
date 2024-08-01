@@ -124,7 +124,7 @@ def cli(
                 config,
                 str(TANKOPEDIA.resolve()),
                 "METADATA",
-                "tankopedia_json1",
+                "tankopedia_json",
                 str(tankopedia_fn) if tankopedia_fn else None,
             )
         )
@@ -147,7 +147,7 @@ def cli(
                 config,
                 str(MAPS.resolve()),
                 "METADATA",
-                "maps_json1",
+                "maps_json",
                 str(maps_fn) if maps_fn else None,
             )
         )
