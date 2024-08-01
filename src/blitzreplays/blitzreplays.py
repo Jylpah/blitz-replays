@@ -4,6 +4,9 @@ import typer
 from typing import Annotated, Optional
 import logging
 from pathlib import Path
+from importlib.resources.abc import Traversable
+from importlib.resources import as_file
+import importlib
 from configparser import ConfigParser
 import configparser
 
@@ -40,8 +43,20 @@ app.async_command(
 
 CONFIG_FILE: Path | None = get_config_file()
 WI_WORKERS: int = 1
-TANKOPEDIA: Path = WGApiWoTBlitzTankopedia.default_path()
-MAPS: Path = Maps.default_path()
+
+TANKOPEDIA: Path
+packaged_tankopedia: Traversable = importlib.resources.files("blitzreplays").joinpath(
+    "files", "tanks.json"
+)  # REFACTOR in Python 3.12
+with as_file(packaged_tankopedia) as tankopedia_fn:
+    TANKOPEDIA = tankopedia_fn
+
+MAPS: Path
+packaged_maps: Traversable = importlib.resources.files("blitzreplays").joinpath(
+    "files", "maps.json"
+)  # REFACTOR in Python 3.12
+with as_file(packaged_maps) as maps_fn:
+    MAPS = maps_fn
 
 
 ##############################################
