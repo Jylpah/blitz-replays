@@ -178,23 +178,6 @@ async def open_maps_yaml(
 
         return Maps.load_yaml(yaml_doc)
 
-        # if maps_fn.is_file():
-        #     maps_file = maps_fn
-        # elif (maps_fn := add_suffix(maps_fn, ".dvpl")).is_file():
-        #     is_dvpl = True
-
-        #     debug("decoding DVPL file: %s", maps_fn.resolve())
-        #     debug("using temporary file: %s", str(temp_fn))
-
-        #     if not await decode_dvpl_file(maps_fn, temp_fn):
-        #         raise IOError(f"could not decode DVPL file: {maps_fn}")
-        #     maps_file = temp_fn
-        # else:
-        #     raise FileNotFoundError(f"could not open Maps file: {maps_fn}")
-
-        # if (maps := await Maps.open_yaml(maps_file)) is None:
-        #     raise ValueError(f"could not read maps from YAML file: {maps_fn}")
-
     except Exception as err:
         error(err)
         raise err
@@ -260,7 +243,7 @@ async def list(
     ] = None,
     # TODO: Might need a StrEnum() type of Enum instead of IntEnum()
     map_mode: Annotated[
-        Optional[MapModeStr], typer.Option(help="list maps for of mode")
+        MapModeStr, typer.Option(help="list maps for of mode")
     ] = MapModeStr.normal,
     all: Annotated[bool, typer.Option(help="list all maps of all modes")] = False,
 ):
@@ -286,8 +269,8 @@ async def list(
         for mode in MapModeStr:
             if all or map_mode == mode:
                 print(f"map mode: {mode} =======================================")
-                for map in maps:
-                    if map.mode == mode.toMapMode:
+                for map in maps.values():
+                    if mode.toMapMode in map.modes:
                         print(f"{map.key:<18}: {map.name}")
                         count += 1
         print(f"{count} maps in total (map mode = {'any' if all else map_mode})")
