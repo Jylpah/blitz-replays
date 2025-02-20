@@ -88,7 +88,7 @@ include = ["pyproject.toml", "src/**/*.py", "tests/**/*.py"]
 indent-width = 4
 extend-include = ["*.ipynb"]
 extend-exclude = [".venv", ".vscode", "/usr/lib/**"]
-fixable = ["ALL"]
+lint.fixable = ["ALL"]
 
 
 [tool.pyright]
