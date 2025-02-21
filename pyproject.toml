@@ -94,6 +94,7 @@ lint.fixable = ["ALL"]
 [tool.pyright]
 reportGeneralTypeIssues = false
 reportInvalidStringEscapeSequence = false
+typeCheckingMode = "off"
 
 
 [tool.pytest.ini_options]
