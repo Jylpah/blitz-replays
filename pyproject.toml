@@ -106,3 +106,4 @@ filterwarnings = [
     'ignore:Inheritance class ThrottledClientSession from ClientSession is discouraged:DeprecationWarning',
     'ignore::coverage.control.CoverageWarning:coverage.control',
 ]
+asyncio_default_fixture_loop_scope = "function"
