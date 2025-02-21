@@ -145,12 +145,12 @@ async def app(
         error(f"{type(err)}: {err}")
         raise Exit(code=1)
 
-    assert (
-        blitz_app_dir is not None
-    ), "Set --blitz-app-dir or define it in config file ('blitz_app_dir' in 'METADATA' section)"
-    assert (
-        blitz_app_dir.is_dir()
-    ), f"--blitz-app-dir has to be a directory: {blitz_app_dir}"
+    assert blitz_app_dir is not None, (
+        "Set --blitz-app-dir or define it in config file ('blitz_app_dir' in 'METADATA' section)"
+    )
+    assert blitz_app_dir.is_dir(), (
+        f"--blitz-app-dir has to be a directory: {blitz_app_dir}"
+    )
 
     tasks: list[Task] = []
     try:
@@ -452,6 +452,80 @@ def read_tank_type(tagstr: str) -> EnumVehicleTypeStr:
         if tank_type.value in tags:
             return tank_type
     raise ValueError(f"No known tank type found from 'tags' field: {tagstr}")
+
+
+########################################################
+#
+# tankopedia file
+#
+########################################################
+
+
+@typer_app.async_command("list")
+async def cli_list(
+    ctx: Context,
+    file: Annotated[
+        Optional[Path],
+        Argument(show_default=False, dir_okay=False, help="list tanks from file"),
+    ] = None,
+    tier: Annotated[Optional[str], Option(help="list tanks of tier")] = None,
+    nation: Annotated[Optional[str], Option(help="list tanks of nation")] = None,
+    tank_type: Annotated[
+        Optional[str], Option("--type", help="list tanks of type")
+    ] = None,
+    premium: Annotated[
+        Optional[bool], Option(help="list premium/non-premium tanks (default: all)")
+    ] = None,
+):
+    """
+    list tanks from Tankopedia JSON file
+    """
+    debug("starting")
+    try:
+        config: configparser.ConfigParser = ctx.obj["config"]
+        if file is None:
+            file = Path(config.get("METADATA", "tankopedia_json"))
+        tank_tier: EnumVehicleTier | None = None
+        if tier is not None:
+            tank_tier = EnumVehicleTier.read_tier(tier)
+        tank_nation: EnumNation | None = None
+        if nation is not None:
+            tank_nation = EnumNation[nation.lower()]
+        if tank_type is not None:
+            tank_type = EnumVehicleTypeStr.from_str(tank_type)
+
+    except configparser.Error as err:
+        error(f"could not read config file: {type(err)}: {err}")
+        Exit(code=1)
+        raise SystemExit(1)
+    except (KeyError, ValueError) as err:
+        error(f"incorrect input given: {type(err)}: {err}")
+        raise SystemExit(1)
+
+    try:
+        if (tanks := await WGApiWoTBlitzTankopedia.open_json(file)) is None:
+            error(f"could not parse tankopedia: {file}")
+            raise SystemExit(1)
+        fmt: str = "rich" if logger.isEnabledFor(logging.INFO) else ""
+        count: int = 0
+        print(Tank.txt_header(fmt))
+        for tank in tanks:
+            if (
+                (tank_type is None or tank.type == tank_type)
+                and (tank_tier is None or tank.tier == tank_tier)
+                and (tank_nation is None or tank.nation == tank_nation)
+                and (premium is None or tank.is_premium == premium)
+            ):
+                print(tank.txt_row(fmt))
+                count += 1
+
+        if count == 0:
+            print("no tanks found")
+        else:
+            print(f"found {count} tank" + ("s" if count > 1 else ""))
+
+    except Exception as err:
+        error(err)
 
 
 if __name__ == "__main__":

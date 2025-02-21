@@ -1,6 +1,6 @@
 [project]
 name = "blitz-replays"
-version = "0.5.22"
+version = "0.5.24"
 authors = [{ name = "Jylpah", email = "jylpah@gmail.com" }]
 description = "Tool to upload and analyze Wargaming's World of Tanks Blitz game repolays"
 readme = "README.md"
@@ -94,6 +94,7 @@ lint.fixable = ["ALL"]
 [tool.pyright]
 reportGeneralTypeIssues = false
 reportInvalidStringEscapeSequence = false
+typeCheckingMode = "off"
 
 
 [tool.pytest.ini_options]
@@ -105,3 +106,4 @@ filterwarnings = [
     'ignore:Inheritance class ThrottledClientSession from ClientSession is discouraged:DeprecationWarning',
     'ignore::coverage.control.CoverageWarning:coverage.control',
 ]
+asyncio_default_fixture_loop_scope = "function"

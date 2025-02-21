@@ -111,7 +111,7 @@ MAPS_FILES = pytest.mark.datafiles(
 def test_1_blitzdata_tankopedia(
     tmp_path: Path, datafiles: Path, args: list[str], added: int, updated: int
 ) -> None:
-    OUTFILE: str = f'{tmp_path / "test_1_tankopedia.json"}'
+    OUTFILE: str = f"{tmp_path / 'test_1_tankopedia.json'}"
     cmd: str = args[0]
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
@@ -146,9 +146,9 @@ def test_2_blitzdata_tankopedia_update(
         tankopedia := asyncio.run(WGApiWoTBlitzTankopedia.open_json(OUTFILE))
     ) is not None, f"could not open results: tankopedia {cmd}"
     tankopedia_tanks: int = len(tankopedia)
-    assert (
-        tankopedia_tanks == total - added
-    ), "incorrect number of tanks read from existing tankopedia"
+    assert tankopedia_tanks == total - added, (
+        "incorrect number of tanks read from existing tankopedia"
+    )
 
     result = CliRunner().invoke(app, ["tankopedia", "--outfile", OUTFILE, *args])
     assert result.exit_code == 0, f"blitzdata tankopedia {cmd} failed"
@@ -158,9 +158,9 @@ def test_2_blitzdata_tankopedia_update(
     ) is not None, f"could not open results: tankopedia {cmd}"
 
     assert len(tankopedia) == total, f"incorrect number of tanks: tankopedia {cmd}"
-    assert (
-        len(tankopedia) - tankopedia_tanks == added
-    ), f"incorrect number of tanks: tankopedia {cmd}"
+    assert len(tankopedia) - tankopedia_tanks == added, (
+        f"incorrect number of tanks: tankopedia {cmd}"
+    )
 
 
 def test_3_blitzdata_tankopedia_wg(tmp_path: Path) -> None:
@@ -195,7 +195,7 @@ def test_3_blitzdata_tankopedia_wg(tmp_path: Path) -> None:
 def test_4_blitzdata_maps(
     tmp_path: Path, datafiles: Path, args: list[str], added: int, updated: int
 ) -> None:
-    OUTFILE: str = f'{tmp_path / "test_4_maps.json"}'
+    OUTFILE: str = f"{tmp_path / 'test_4_maps.json'}"
     cmd: str = args[0]
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
@@ -204,9 +204,9 @@ def test_4_blitzdata_maps(
     )
     assert result.exit_code == 0, f"blitzdata maps {cmd} failed"
 
-    assert (
-        maps := asyncio.run(Maps.open_json(OUTFILE))
-    ) is not None, f"could not open results: maps {cmd}"
+    assert (maps := asyncio.run(Maps.open_json(OUTFILE))) is not None, (
+        f"could not open results: maps {cmd}"
+    )
 
     assert len(maps) == added, f"incorrect number of tanks: maps {cmd}"
 
@@ -226,9 +226,9 @@ def test_5_blitzdata_maps_update(
     cmd: str = args[0]
     args[-1] = f"{(tmp_path / args[-1]).resolve()}"
 
-    assert (
-        maps := asyncio.run(Maps.open_json(OUTFILE))
-    ) is not None, f"could not open results: maps {cmd}"
+    assert (maps := asyncio.run(Maps.open_json(OUTFILE))) is not None, (
+        f"could not open results: maps {cmd}"
+    )
     maps_N: int = len(maps)
     debug(f"maps_old.json: {maps_N} maps")
     assert maps_N == total - added, "incorrect number of maps read from file"
@@ -236,9 +236,9 @@ def test_5_blitzdata_maps_update(
     result = CliRunner().invoke(app, ["maps", "--outfile", OUTFILE, *args])
     assert result.exit_code == 0, f"blitzdata maps {cmd} failed"
 
-    assert (
-        maps := asyncio.run(Maps.open_json(OUTFILE))
-    ) is not None, f"could not open results: maps {cmd}"
+    assert (maps := asyncio.run(Maps.open_json(OUTFILE))) is not None, (
+        f"could not open results: maps {cmd}"
+    )
 
     debug(f"maps_old.json updated: {len(maps)} maps")
     assert len(maps) == total, f"incorrect number of maps: maps {cmd}"

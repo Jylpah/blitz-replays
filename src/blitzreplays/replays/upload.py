@@ -49,8 +49,8 @@ async def upload(
         Optional[bool],
         typer.Option(
             show_default=False,
-            is_flag=True,
-            flag_value=True,
+            # is_flag=True,
+            # flag_value=True,
             help="force upload even JSON file exists",
         ),
     ] = False,
