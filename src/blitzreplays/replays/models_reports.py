@@ -28,7 +28,7 @@ from .args import (
 from .models_replay import EnrichedReplay
 from .models_fields import ValueStore, FieldKey, Fields
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info
@@ -234,7 +234,7 @@ class Reports:
             self.db[key] = cat(name=name, **kwargs)
         except KeyError as err:
             error(
-                f"could not create report: key={key}, name={name}, categorization={categorization}, {', '.join('='.join([k,v]) for k,v in kwargs.items())}"
+                f"could not create report: key={key}, name={name}, categorization={categorization}, {', '.join('='.join([k, v]) for k, v in kwargs.items())}"
             )
             error(err)
             raise
@@ -507,7 +507,7 @@ class BucketCategorization(Categorization):
 
         if len(buckets) != len(bucket_labels):
             message(
-                f"check report config: the number of 'buckets' ({len(buckets)}) and 'bucket_labels' ({len(bucket_labels)    }) does not match"
+                f"check report config: the number of 'buckets' ({len(buckets)}) and 'bucket_labels' ({len(bucket_labels)}) does not match"
             )
         debug(f"buckets={buckets}")
         debug(f"labels={bucket_labels}")

@@ -30,7 +30,7 @@ from pyutils import AsyncTyper
 
 typer_app = AsyncTyper()
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info

@@ -17,7 +17,7 @@ from blitzmodels import Maps, Region, MapModeStr
 
 from dvplc import decode_dvpl, open_dvpl_or_file
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info
@@ -105,12 +105,12 @@ async def app(
         typer.Exit(code=3)
         raise SystemExit(3)
     assert isinstance(force, bool), f"error: 'force' is not bool: {type(force)}"
-    assert (
-        blitz_app_dir is not None
-    ), "Set --blitz-app-dir or define it in config file ('blitz_app_dir' in 'METADATA' section)"
-    assert (
-        blitz_app_dir.is_dir()
-    ), f"--blitz-app-dir has to be a directory: {blitz_app_dir}"
+    assert blitz_app_dir is not None, (
+        "Set --blitz-app-dir or define it in config file ('blitz_app_dir' in 'METADATA' section)"
+    )
+    assert blitz_app_dir.is_dir(), (
+        f"--blitz-app-dir has to be a directory: {blitz_app_dir}"
+    )
 
     localization_strs: dict[str, str] = dict()
     maps: Maps | None = None

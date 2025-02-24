@@ -16,7 +16,7 @@ from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
 
 from .replays import upload, analyze
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info

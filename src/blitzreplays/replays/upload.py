@@ -15,7 +15,7 @@ from blitzmodels.wotinspector.wi_apiv2 import WoTinspector, Replay
 
 app = AsyncTyper()
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info

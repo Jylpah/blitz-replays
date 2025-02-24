@@ -13,7 +13,7 @@ import typer
 import sys
 from os import makedirs
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info

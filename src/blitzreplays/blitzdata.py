@@ -12,7 +12,7 @@ from blitzmodels import get_config_file
 
 from .metadata import tankopedia, maps
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info

@@ -27,7 +27,7 @@ from blitzmodels.wotinspector.wi_apiv1 import EnumBattleResult
 
 from .args import StatsType, StatsMeasure, EnumTeamFilter, EnumGroupFilter, PlayerFilter
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info
