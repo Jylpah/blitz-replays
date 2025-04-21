@@ -95,6 +95,11 @@ lint.fixable = ["ALL"]
 reportGeneralTypeIssues = false
 reportInvalidStringEscapeSequence = false
 typeCheckingMode = "off"
+include = ["src", "tests"]
+extraPaths = ["src"]
+
+[tool.coverage.run]
+omit = ['tests/*']
 
 
 [tool.pytest.ini_options]
