@@ -15,7 +15,7 @@ from blitzmodels.wotinspector.wi_apiv2 import WoTinspector, Replay
 
 app = AsyncTyper()
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info
@@ -49,8 +49,8 @@ async def upload(
         Optional[bool],
         typer.Option(
             show_default=False,
-            is_flag=True,
-            flag_value=True,
+            # is_flag=True,
+            # flag_value=True,
             help="force upload even JSON file exists",
         ),
     ] = False,

@@ -7,15 +7,15 @@ from configparser import ConfigParser
 import configparser
 import logging
 
-from pyutils import MultilevelFormatter
+from multilevellogger import getMultiLevelLogger, MultiLevelLogger, MESSAGE, VERBOSE
 from blitzmodels import get_config_file
 
 from .metadata import tankopedia, maps
 
-logger = logging.getLogger()
+logger: MultiLevelLogger = getMultiLevelLogger(__name__)
 error = logger.error
-message = logger.warning
-verbose = logger.info
+message = logger.message
+verbose = logger.verbose
 debug = logger.debug
 
 CONFIG_FILE: Path | None = get_config_file()
@@ -64,12 +64,14 @@ def cli(
     """CLI app to extract WoT Blitz tankopedia and maps for other tools"""
     global logger, error, debug, verbose, message
 
-    LOG_LEVEL: int = logging.WARNING
+    if log is not None:
+        logger.addLogFile(log_file=log)
+    LOG_LEVEL: int = MESSAGE
     if print_verbose:
-        LOG_LEVEL = logging.INFO
+        LOG_LEVEL = VERBOSE
     elif print_debug:
         LOG_LEVEL = logging.DEBUG
-    MultilevelFormatter.setDefaults(logger, log_file=log)
+
     logger.setLevel(LOG_LEVEL)
     ctx.ensure_object(dict)
 

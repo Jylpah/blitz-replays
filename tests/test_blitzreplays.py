@@ -8,7 +8,7 @@ import logging
 
 from blitzreplays.blitzreplays import app
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info
@@ -248,6 +248,6 @@ def test_3_blitzreplays_analyze_info(
         ["analyze"] + args,
         catch_exceptions=False,
     )
-    assert (
-        result.exit_code == 0
-    ), f"blitzreplays analyze {' '.join(args)}: {result.output}"
+    assert result.exit_code == 0, (
+        f"blitzreplays analyze {' '.join(args)}: {result.output}"
+    )

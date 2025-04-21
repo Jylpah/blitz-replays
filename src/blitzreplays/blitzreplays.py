@@ -10,16 +10,20 @@ import importlib
 from configparser import ConfigParser
 import configparser
 
-from pyutils import MultilevelFormatter, AsyncTyper
-from pyutils.utils import set_config
-from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
+from multilevellogger import getMultiLevelLogger, MultiLevelLogger, MESSAGE, VERBOSE
 
+from blitzmodels import get_config_file, WGApiWoTBlitzTankopedia, Maps
 from .replays import upload, analyze
 
-logger = logging.getLogger()
+# TODO: remove pyutils dependency
+from pyutils import AsyncTyper
+from pyutils.utils import set_config
+
+
+logger: MultiLevelLogger = getMultiLevelLogger(__name__)
 error = logger.error
-message = logger.warning
-verbose = logger.info
+message = logger.message
+verbose = logger.verbose
 debug = logger.debug
 
 ##############################################
@@ -113,12 +117,13 @@ def cli(
     """
     global logger, error, debug, verbose, message
 
-    LOG_LEVEL: int = logging.WARNING
+    if log is not None:
+        logger.addLogFile(log_file=log)
+    LOG_LEVEL: int = MESSAGE
     if print_verbose:
-        LOG_LEVEL = logging.INFO
+        LOG_LEVEL = VERBOSE
     elif print_debug:
         LOG_LEVEL = logging.DEBUG
-    MultilevelFormatter.setDefaults(logger, log_file=log)
     logger.setLevel(LOG_LEVEL)
     ctx.ensure_object(dict)
 

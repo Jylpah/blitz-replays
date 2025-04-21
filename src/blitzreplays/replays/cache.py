@@ -36,7 +36,7 @@ from .args import (
 )
 from .models_replay import PlayerStats, EnrichedReplay, stat_key
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 error = logger.error
 message = logger.warning
 verbose = logger.info
@@ -444,9 +444,9 @@ class TankStatsAPICache(APICache):
                         account_id,
                         len(tank_stats),
                     )
-                    self._api_cache[
-                        account_id
-                    ] = TankStatsDict.from_WGApiWoTBlitzTankStats(api_stats=tank_stats)
+                    self._api_cache[account_id] = (
+                        TankStatsDict.from_WGApiWoTBlitzTankStats(api_stats=tank_stats)
+                    )
 
             except Exception as err:
                 error(f"could not fetch stats for account_id={account_id}: {err}")
